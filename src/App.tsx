@@ -6,7 +6,8 @@ import Information from './pages/Information';
 import NotFound from './pages/NotFound';
 import AppKiosk from './pages/kiosk/AppTailwind';
 import AppDashboard from './pages/Dashboard/AppDash';
-import Appevents from "./pages/Events/Appevents.jsx"
+import Appevents from "./pages/Events/Appevents"
+import CrowdManagement from './pages/Heatmap/CrowdManagement';
 
 
 function AppContent() {
@@ -20,6 +21,7 @@ function AppContent() {
       <main style={{ minHeight: 'calc(100vh - 140px)', paddingTop: !isDashboard && !isKiosk ? '70px' : '0' }}>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/crowd-management" element={<CrowdManagement />} />
           <Route path="/information" element={<Information />} />
           <Route path="/kiosk" element={<AppKiosk />} />
           <Route path="/dashboard/*" element={<AppDashboard />} />

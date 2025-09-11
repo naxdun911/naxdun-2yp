@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Home, Users, Calendar, Info } from 'lucide-react';
+import { Menu, X, Home, Users, Calendar, Info, Map } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 interface NavItem {
@@ -15,8 +15,9 @@ const Navbar: React.FC = () => {
 
   const navItems: NavItem[] = [
     { path: '/', label: 'Home', icon: Home },
+    { path: '/crowd-management', label: 'Crowd Management', icon: Users },
     { path: '/dashboard', label: 'Dashboard', icon: Users },
-    { path: '/map', label: 'Map', icon: Users },
+    { path: '/map', label: 'Map', icon: Map },
     { path: '/events', label: 'Events', icon: Calendar },
     { path: '/information', label: 'Information', icon: Info },
   ];
