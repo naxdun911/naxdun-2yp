@@ -4,24 +4,27 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Information from './pages/Information';
 import NotFound from './pages/NotFound';
-import AppTailwind from './pages/kiosk/AppTailwind';
+import AppKiosk from './pages/kiosk/AppTailwind';
+import AppDashboard from './pages/Dashboard/App';
 
 function AppContent() {
   const location = useLocation();
   const isKiosk = location.pathname.startsWith('/kiosk');
+  const isDashboard = location.pathname.startsWith('/dashboard');
 
   return (
     <div className="App">
-      {!isKiosk && <Navbar />}
+      {!isDashboard && !isKiosk && <Navbar />}
       <main style={{ minHeight: 'calc(100vh - 140px)', paddingTop: !isKiosk ? '70px' : '0' }}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/information" element={<Information />} />
           <Route path="*" element={<NotFound />} />
-          <Route path="/kiosk" element={<AppTailwind />} />
+          <Route path="/kiosk" element={<AppKiosk />} />
+          
         </Routes>
       </main>
-      {!isKiosk && <Footer />}
+      {!isDashboard && !isKiosk && <Footer />}
     </div>
   );
 }

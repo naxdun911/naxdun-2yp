@@ -10,9 +10,9 @@ import IntroVideo from './IntroVideo'
 import Navigation from './Navigation'
 import Footer from './Footer'
 
-interface AppTailwindProps {}
+interface AppKioskProps {}
 
-const AppTailwind: React.FC<AppTailwindProps> = () => {
+const AppKiosk: React.FC<AppKioskProps> = () => {
   const [currentPage, setCurrentPage] = useState<number>(0)
   const [showIntroVideo, setShowIntroVideo] = useState<boolean>(true)
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -105,4 +105,4 @@ const AppTailwind: React.FC<AppTailwindProps> = () => {
   )
 }
 
-export default AppTailwind
+export default AppKiosk;
