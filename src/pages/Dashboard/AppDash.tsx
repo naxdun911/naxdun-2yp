@@ -32,13 +32,17 @@ function AppDashboard() {
 
   return (
     <Routes>
+      <Route path="login" element={<LoginPage onLogin={handleLogin} />} />
+      <Route path="register" element={<RegisterPage />} />
+      
+      {/* Protected routes with nested structure */}
       <Route
         path="/"
         element={
           isAuthenticated ? (
             <OrganizerDashBoard onLogout={handleLogout} />
           ) : (
-            <Navigate to="/login" replace />
+            <Navigate to="login" replace />
           )
         }
       >
@@ -50,9 +54,8 @@ function AppDashboard() {
         <Route path="buildings" element={<BuildingsPage />} />
         <Route path="events" element={<EventsPage />} />
       </Route>
-      <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
+      
+      <Route path="*" element={<Navigate to={isAuthenticated ? "" : "login"} replace />} />
     </Routes>
   );
 }

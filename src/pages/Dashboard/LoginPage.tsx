@@ -19,7 +19,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     if (email && password) {
       localStorage.setItem("authUser", JSON.stringify({ email }));
       onLogin();
-      navigate("/");
+      navigate("../");
     } else {
       alert("Please enter valid email and password");
     }
@@ -125,7 +125,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => navigate("/register")}
+                onClick={() => navigate("../register")}
               >
                 Create account
               </button>

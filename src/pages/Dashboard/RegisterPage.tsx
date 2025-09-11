@@ -33,7 +33,7 @@ const RegisterPage: React.FC = () => {
     const user = { firstName, lastName, email, company };
     localStorage.setItem("registeredUser", JSON.stringify(user));
     // Navigate back to login
-    navigate("/login");
+    navigate("../login");
   };
 
   return (
@@ -157,7 +157,7 @@ const RegisterPage: React.FC = () => {
 
             <button type="submit" className="primary-button">Create account</button>
             <p className="switch">
-              Already have an account? <Link className="link" to="/login">Log in</Link>
+              Already have an account? <Link className="link" to="../login">Log in</Link>
             </p>
           </form>
         </div>
