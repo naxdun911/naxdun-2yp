@@ -23,34 +23,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files
-.env
-.env.*
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
-# Image files
-*.jpg
-*.jpeg
-*.png
-*.gif
-*.bmp
-*.svg
-*.ico
-*.webp
-*.tiff
-*.tif
 
-# Video files
-*.mp4
-*.avi
-*.mov
-*.wmv
-*.flv
-*.mkv
-*.webm
-*.m4v
-*.3gp
-*.ogv
