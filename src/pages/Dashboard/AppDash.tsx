@@ -1,17 +1,11 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import OrganizerDashBoard from "./OrganizerDashBoard";
 import LoginPage from "./LoginPage";
 import RegisterPage from "./RegisterPage";
-import OverviewPage from "./OverviewPage";
-import HeatmapsPage from "./HeatmapsPage";
-import FeedbackPage from "./FeedbackPage";
-import ExportPage from "./ExportPage";
-import BuildingsPage from "./BuildingsPage";
-import EventsPage from "./EventsPage";
-import { Routes, Route, Navigate } from "react-router-dom";
 
-function AppDashboard() {
+function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -30,34 +24,30 @@ function AppDashboard() {
     setIsAuthenticated(false);
   };
 
+  const handleGoToRegister = () => {
+    setShowRegister(true);
+  };
+
+  const handleGoToLogin = () => {
+    setShowRegister(false);
+  };
+
+  const handleRegister = () => {
+    // After successful registration, go to login page
+    setShowRegister(false);
+  };
+
   return (
-    <Routes>
-      <Route path="login" element={<LoginPage onLogin={handleLogin} />} />
-      <Route path="register" element={<RegisterPage />} />
-      
-      {/* Protected routes with nested structure */}
-      <Route
-        path="/"
-        element={
-          isAuthenticated ? (
-            <OrganizerDashBoard onLogout={handleLogout} />
-          ) : (
-            <Navigate to="login" replace />
-          )
-        }
-      >
-        <Route index element={<OverviewPage />} />
-        <Route path="overview" element={<OverviewPage />} />
-        <Route path="heatmaps" element={<HeatmapsPage />} />
-        <Route path="feedback" element={<FeedbackPage />} />
-        <Route path="export" element={<ExportPage />} />
-        <Route path="buildings" element={<BuildingsPage />} />
-        <Route path="events" element={<EventsPage />} />
-      </Route>
-      
-      <Route path="*" element={<Navigate to={isAuthenticated ? "" : "login"} replace />} />
-    </Routes>
+    <>
+      {isAuthenticated ? (
+        <OrganizerDashBoard onLogout={handleLogout} />
+      ) : showRegister ? (
+        <RegisterPage onRegister={handleRegister} goToLogin={handleGoToLogin} />
+      ) : (
+        <LoginPage onLogin={handleLogin} goToRegister={handleGoToRegister} />
+      )}
+    </>
   );
 }
 
-export default AppDashboard;
+export default App;

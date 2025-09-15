@@ -2,39 +2,71 @@ import React, { useState } from "react";
 import { TrendingUp, Users, MapPin, Clock, BarChart3 } from "lucide-react";
 
 const OverviewWidget: React.FC = () => {
-  const [timeRange, setTimeRange] = useState("realtime");
-  const [zone, setZone] = useState("all");
-  const [building, setBuilding] = useState("all");
+  // ✅ Default: Zone A, Drawing Office 2, Last 1 Hour
+  const [timeRange, setTimeRange] = useState("1h");
+  const [zone, setZone] = useState("zone1");
+  const [building, setBuilding] = useState("booth22");
+
+  // ✅ Zone → Buildings mapping
+  const zoneBuildings: Record<string, { id: string; name: string }[]> = {
+    zone1: [
+      { name: "Drawing Office 2", id: "booth22" },
+      { name: "Department of Manufacturing and Industrial Engineering", id: "booth28" },
+      { name: "Corridor", id: "booth23" },
+      { name: "Lecture Room (middle-right)", id: "booth24" },
+      { name: "Structures Laboratory", id: "booth25" },
+      { name: "Lecture Room (bottom-right)", id: "booth26" },
+      { name: "Engineering Library", id: "booth27" },
+    ],
+    zone2: [
+      { name: "Drawing Office 1", id: "booth3" },
+      { name: "Professor E.O.E. Pereira Theatre", id: "booth4" },
+      { name: "Administrative Building", id: "booth5" },
+      { name: "Security Unit", id: "booth6" },
+      { name: "Department of Chemical and Process Engineering", id: "booth1" },
+      { name: "Department Engineering Mathematics", id: "booth2" },
+    ],
+    zone3: [
+      { name: "Department of Electrical and Electronic Engineering", id: "booth8" },
+      { name: "Department of Computer Engineering", id: "booth9" },
+      { name: "Electrical and Electronic Workshop", id: "booth10" },
+      { name: "Surveying Lab", id: "booth11" },
+      { name: "Soil Lab", id: "booth12" },
+      { name: "Materials Lab", id: "booth13" },
+    ],
+    zone4: [
+      { name: "Fluids Lab", id: "booth15" },
+      { name: "New Mechanics Lab", id: "booth16" },
+      { name: "Applied Mechanics Lab", id: "booth17" },
+      { name: "Thermodynamics Lab", id: "booth18" },
+      { name: "Generator Room", id: "booth19" },
+      { name: "Engineering Workshop", id: "booth20" },
+      { name: "Engineering Carpentry Shop", id: "booth21" },
+    ],
+  };
 
   // Mock stats (replace with API response later)
   const stats = [
     {
       label: "Total Attendees",
-      value: building === "all" ? "2,847" : "432",
+      value: building === "booth22" ? "432" : "2,847",
       change: "+12%",
       icon: Users,
       color: "blue",
     },
     {
       label: "Check-ins",
-      value: building === "all" ? "2,341" : "278",
+      value: building === "booth22" ? "278" : "2,341",
       change: "+8%",
       icon: MapPin,
       color: "green",
     },
     {
       label: "Avg. Session Time",
-      value: building === "all" ? "4h 32m" : "2h 12m",
+      value: building === "booth22" ? "2h 12m" : "4h 32m",
       change: "+15%",
       icon: Clock,
       color: "purple",
-    },
-    {
-      label: "Engagement Rate",
-      value: building === "all" ? "87%" : "72%",
-      change: "+5%",
-      icon: TrendingUp,
-      color: "orange",
     },
   ];
 
@@ -60,36 +92,36 @@ const OverviewWidget: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* 🔽 Top Title */}
-      <div className="flex justify-between items-center">
-        
-      </div>
-
       {/* 🔽 Filters Row */}
       <div className="flex flex-wrap justify-end gap-3">
         {/* Zone filter */}
         <select
           value={zone}
-          onChange={(e) => setZone(e.target.value)}
+          onChange={(e) => {
+            const selectedZone = e.target.value;
+            setZone(selectedZone);
+            // Reset building to first in zone
+            setBuilding(zoneBuildings[selectedZone][0].id);
+          }}
           className="border rounded-lg px-3 py-2"
         >
-          <option value="all">All Zones</option>
-          <option value="zone1">Zone 1</option>
-          <option value="zone2">Zone 2</option>
+          <option value="zone1">Zone A</option>
+          <option value="zone2">Zone B</option>
+          <option value="zone3">Zone C</option>
+          <option value="zone4">Zone D</option>
         </select>
 
-        
-
-        {/* Building filter */}
+        {/* Building filter (filtered by zone) */}
         <select
           value={building}
           onChange={(e) => setBuilding(e.target.value)}
           className="border rounded-lg px-3 py-2"
         >
-          <option value="all">All Buildings</option>
-          <option value="booth1">Building 1</option>
-          <option value="booth2">Building 2</option>
-          <option value="booth3">Building 3</option>
+          {zoneBuildings[zone].map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
         </select>
 
         {/* Time filter */}
@@ -98,7 +130,6 @@ const OverviewWidget: React.FC = () => {
           onChange={(e) => setTimeRange(e.target.value)}
           className="border rounded-lg px-3 py-2"
         >
-          <option value="realtime">Realtime</option>
           <option value="1h">Last 1 Hour</option>
           <option value="3h">Last 3 Hours</option>
           <option value="5h">Last 5 Hours</option>
@@ -108,7 +139,7 @@ const OverviewWidget: React.FC = () => {
       </div>
 
       {/* 📊 Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {stats.map((stat, i) => {
           const Icon = stat.icon;
           return (
@@ -158,8 +189,8 @@ const OverviewWidget: React.FC = () => {
             <div className="flex items-center space-x-2">
               <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
               <span className="text-sm text-gray-600">
-                {timeRange === "realtime"
-                  ? "Live Realtime Data"
+                {timeRange === "1h"
+                  ? "Data (Last 1 Hour)"
                   : `Data (${timeRange})`}
               </span>
             </div>
@@ -171,8 +202,8 @@ const OverviewWidget: React.FC = () => {
               </div>
               <p className="text-gray-600 font-medium">Chart placeholder</p>
               <p className="text-gray-400 text-sm">
-                {timeRange === "realtime"
-                  ? "Realtime attendance visualization"
+                {timeRange === "1h"
+                  ? "Attendance trends (Last 1 Hour)"
                   : `Attendance trends (${timeRange})`}
               </p>
             </div>
