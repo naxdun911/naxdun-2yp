@@ -1,19 +1,15 @@
 import { useState, useEffect } from 'react'
 // @ts-ignore - JavaScript module without TypeScript declarations
-import { getAllEvents, getEventsWithinHour, formatEventForDisplay } from './utils/eventService'
+import { getAllEvents } from './utils/eventService'
 
 interface Event {
-  id?: any;
-  title: any;
-  venue: any;
-  time: string;
-  duration: string;
-  status: string;
-  timeInfo?: string;
-  type?: string;
-  startDateTime?: Date;
-  endDateTime?: Date;
-  isToday?: boolean;
+  event_id: string;
+  event_title: string;
+  location: string;
+  start_time: string;
+  end_time: string;
+  event_categories?: string[];
+  categories?: string[];
 }
 
 interface SchedulePageTailwindProps {}
@@ -21,39 +17,34 @@ interface SchedulePageTailwindProps {}
 const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
   // State management
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [currentEvents, setCurrentEvents] = useState<Event[]>([]) // Events within an hour
-  const [allEvents, setAllEvents] = useState<Event[]>([]) // All events for search
+  const [allEvents, setAllEvents] = useState<Event[]>([]) // All events
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<number>(0)
-  const [activeTab, setActiveTab] = useState<'happening' | 'all'>('happening')
   
   // Fetch events from database
   useEffect(() => {
     const fetchEvents = async () => {
       try {
+        console.log('🔄 Fetching events...')
         setLoading(true)
         setError(null)
         
-        // Fetch both current events and all events
-        const [currentResult, allResult] = await Promise.all([
-          getEventsWithinHour(),
-          getAllEvents()
-        ])
+        // Fetch all events
+        const data = await getAllEvents()
+        console.log('📋 Events data received:', data)
         
-        if (currentResult.success && allResult.success && currentResult.data && allResult.data) {
-          // Format events for display
-          const formattedCurrentEvents = currentResult.data.map(formatEventForDisplay)
-          const formattedAllEvents = allResult.data.map(formatEventForDisplay)
-          
-          setCurrentEvents(formattedCurrentEvents)
-          setAllEvents(formattedAllEvents)
+        if (data && data.length > 0) {
+          // Events are already in the correct format from the service
+          console.log('✅ Setting events:', data.length, 'events')
+          setAllEvents(data)
         } else {
-          setError(currentResult.error || allResult.error || 'Failed to fetch events')
+          console.log('⚠️ No events found or empty array')
+          setError('No events found')
         }
       } catch (err) {
-        setError('An unexpected error occurred')
-        console.error('Error fetching events:', err)
+        console.error('❌ Error fetching events:', err)
+        setError('Failed to fetch events: ' + (err as Error).message)
       } finally {
         setLoading(false)
       }
@@ -74,31 +65,24 @@ const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
       const query = searchQuery.toLowerCase().trim()
       
       const filteredEvents = allEvents.filter(event => {
-        // Check if query matches status keywords
-        const statusMatch = 
-          (query === 'ongoing' && event.status === 'ongoing') ||
-          (query === 'upcoming' && event.status === 'upcoming') ||
-          (query === 'completed' && event.status === 'completed')
-        
         // Check if query is in title
-        const titleMatch = event.title.toLowerCase().includes(query)
+        const titleMatch = event.event_title.toLowerCase().includes(query)
         
         // Check if query is in venue/location
-        const locationMatch = event.venue.toLowerCase().includes(query)
+        const locationMatch = event.location.toLowerCase().includes(query)
         
-        // Check if query is in time or duration (secondary matches)
-        const timeMatch = event.time.toLowerCase().includes(query)
-        const durationMatch = event.duration.toLowerCase().includes(query)
-        const typeMatch = event.type && event.type.toLowerCase().includes(query)
+        // Check if query is in start_time or end_time (secondary matches)
+        const startTimeMatch = event.start_time.toLowerCase().includes(query)
+        const endTimeMatch = event.end_time.toLowerCase().includes(query)
         
         // Return true if any of the fields match
-        return statusMatch || titleMatch || locationMatch || timeMatch || durationMatch || typeMatch
+        return titleMatch || locationMatch || startTimeMatch || endTimeMatch
       })
       
       return filteredEvents
     } else {
-      // No search query - show events based on active tab
-      return activeTab === 'happening' ? currentEvents : allEvents
+      // No search query - show all events
+      return allEvents
     }
   }
 
@@ -150,6 +134,36 @@ const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
     setSearchQuery('')
   }
 
+  // Helper function to compute event status from raw fields
+  const getEventStatus = (event: Event): string => {
+    const now = new Date()
+    const eventStartDateTime = new Date(event.start_time)
+    const eventEndDateTime = new Date(event.end_time)
+    
+    if (now >= eventEndDateTime) {
+      return 'completed'
+    } else if (now >= eventStartDateTime && now < eventEndDateTime) {
+      return 'ongoing'
+    } else {
+      return 'upcoming'
+    }
+  }
+
+  // Helper function to format time display
+  const formatTimeForDisplay = (dateTimeString: string): string => {
+    const date = new Date(dateTimeString)
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit', 
+      hour12: true 
+    })
+  }
+
+  // Helper function to format duration display
+  const formatDurationDisplay = (startTime: string, endTime: string): string => {
+    return `${formatTimeForDisplay(startTime)} - ${formatTimeForDisplay(endTime)}`
+  }
+
   return (
     <div className="w-full h-full p-0 box-border overflow-visible animate-fadeIn">
       <div className="max-w-7xl mx-auto p-8 h-auto w-full">
@@ -160,27 +174,9 @@ const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
             {searchQuery ? 'Event Search Results' : 'Events Schedule'}
           </h1>
           
-          {/* Tab Navigation */}
-          <div className="flex justify-center gap-4 mb-4">
-            <button 
-              className={`tab-btn ${activeTab === 'happening' ? 'active' : ''}`}
-              onClick={() => setActiveTab('happening')}
-            >
-              Events Happening
-            </button>
-            <button 
-              className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`}
-              onClick={() => setActiveTab('all')}
-            >
-              All Events
-            </button>
-          </div>
-          
-          {/* Tab Description */}
+          {/* Description */}
           <p className="text-white/80 text-lg mb-6">
-            {activeTab === 'happening' 
-              ? 'Events happening now or starting within the next hour'
-              : 'Complete schedule of all upcoming events'}
+            Complete schedule of all events
           </p>
           
           {/* Enhanced Search Input */}
@@ -188,7 +184,7 @@ const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Search by status, title, or location..."
+                placeholder="Search by title, location, or description..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full p-4 text-lg bg-white/90 border-none rounded-3xl text-gray-700 shadow-[0_4px_15px_rgba(0,0,0,0.1)] transition-all duration-300 focus:outline-none focus:shadow-[0_4px_20px_rgba(59,130,246,0.3)] focus:bg-white placeholder:text-gray-600 placeholder:opacity-80"
@@ -239,30 +235,32 @@ const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
             </div>
           ) : displayEvents.length > 0 ? (
             // Map through display events and show each one
-            displayEvents.map((event, index) => (
+            displayEvents.map((event, index) => {
+              const status = getEventStatus(event)
+              return (
               <div 
-                key={event.id || index} 
+                key={event.event_id || index} 
                 className="bg-transparent  backdrop-blur-xl rounded-2xl border-2 border-[rgba(59,130,246,0.6)] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.3)] transition-all duration-300 hover:transform hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.4)] animate-slideIn"
                 style={{animationDelay: `${index * 0.1}s`}}
               >
                 {/* Status Badge */}
                 <div 
                   className="absolute top-4 right-4 px-3 py-1 rounded-full text-white text-sm font-bold shadow-lg"
-                  style={{ backgroundColor: getStatusColor(event.status) }}
+                  style={{ backgroundColor: getStatusColor(status) }}
                 >
                   <span>
-                    {getStatusText(event.status)}
+                    {getStatusText(status)}
                   </span>
                 </div>
                 
                 {/* Event Information */}
-                <div className="mt-8 flex justify-between items-center flex-wrap gap-4">
-                  <div className="mb-2">
+                <div className="mt-8 flex justify-between items-start flex-wrap gap-4">
+                  <div className="mb-2 flex-1">
                     <h3 className="text-3xl font-bold text-white mb-2">
-                      {highlightSearchTerm(event.title, searchQuery)}
+                      {highlightSearchTerm(event.event_title, searchQuery)}
                     </h3>
-                    <p className="text-blue-300 text-lg">
-                      Duration: {highlightSearchTerm(event.duration, searchQuery)}
+                    <p className="text-blue-300 text-lg mb-2">
+                      Duration: {highlightSearchTerm(formatDurationDisplay(event.start_time, event.end_time), searchQuery)}
                     </p>
                   </div>
                   
@@ -271,20 +269,20 @@ const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
                     <div className="flex flex-col gap-2 text-right min-w-[200px] items-end"> 
                       <span className="text-white/100 text-2xl font-medium block mb-1">Location</span>
                       <span className="text-[#FDE103] text-xl">
-                        {highlightSearchTerm(event.venue, searchQuery)}
+                        {highlightSearchTerm(event.location, searchQuery)}
                       </span>
                     </div>
                     
                     <div className="flex flex-col gap-2 text-right min-w-[200px] items-end">
                       <span className="text-white/100 text-2xl font-medium block mb-1">Start Time</span>
                       <span className="text-[#FDE103] text-xl">
-                        {highlightSearchTerm(event.time, searchQuery)}
+                        {highlightSearchTerm(formatTimeForDisplay(event.start_time), searchQuery)}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
-            ))
+            )})
           ) : (
             // Show appropriate message based on search state
             <div className="text-center p-12">
@@ -295,17 +293,7 @@ const SchedulePageTailwind: React.FC<SchedulePageTailwindProps> = () => {
                     onClick={clearSearch} 
                     className="px-6 py-3 bg-blue-500/30 text-white rounded-xl border border-blue-400/60 hover:bg-blue-500/50 transition-all duration-300"
                   >
-                    Show Current Events
-                  </button>
-                </div>
-              ) : activeTab === 'happening' ? (
-                <div className="space-y-4">
-                  <p className="text-white/70 text-xl">No events are currently happening or starting within the next hour.</p>
-                  <button 
-                    onClick={() => setActiveTab('all')} 
-                    className="px-6 py-3 bg-blue-500/30 text-white rounded-xl border border-blue-400/60 hover:bg-blue-500/50 transition-all duration-300"
-                  >
-                    View All Events
+                    Show All Events
                   </button>
                 </div>
               ) : (
