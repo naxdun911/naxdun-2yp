@@ -1,4 +1,4 @@
-const {nodes, edges} = require('./path3.json');
+const {nodes, edges} = require('./path.json');
 const turf = require('@turf/turf')
 
 edges.forEach(e => {

@@ -2,6 +2,7 @@
 // Function to search data from the backend database
 
 // Search function for the backend
+
 function searchDatabase(query, { category, zone, subzone } = {}) {
   if (!query || query.trim() === '') return [];
   
@@ -107,7 +108,5 @@ function searchDatabase(query, { category, zone, subzone } = {}) {
   return uniqueResults.slice(0, 20); // Limit to 20 results
 }
 
-module.exports = {
-  searchDatabase
-};
+module.exports = searchDatabase
 
