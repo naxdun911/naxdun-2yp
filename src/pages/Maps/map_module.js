@@ -67,30 +67,32 @@ function initMap(map_div) {
 }
 
 const buildings = {
-  "b29": 39,
+  "b29": 35,
   "b10": 29,
   "b16": 81,
-  "b34": 61,
-  "b15": 17,
-  "b14": 84,
-  "b6": 30,
-  "b13": 36,
-  "b7": 90,
-  "b12": 83,
-  "b33": 77,
-  "b32": 41,
-  "b11": 32,
-  "b18": 59,
-  "b20":35,
+  "b31": 61,
+  "b15": 10,
+  "b14": 8,
+  "b6": 15,
+  "b13": 20,
+  "b7": 57,
+  "b12": 22,
+  "b33": 87,
+  "b32": 75,
+  "b11": 88,
+  "b18": 68,
+  "b18A": 64,
+  "b20":92,
   "b21": 56,
-  "b28": 40,
-  "b22": 57,
-  "b30": 54,
-  "b23": 38,
-  "b24": 37,
+  "b28": 27,
+  "b22": 25,
+  "b30": 30,
+  "b23": 50,
+  "b24": 48,
   "b4": 50,
-  "b2": 24,
-  "b1": 48,
+  "b2": 44,
+  "b1": 40,
+  "b34": 71,
 
 
 };
@@ -117,15 +119,54 @@ function drawRoute(result) {
 }
 
 function drawMarker(latLng) {
+  
   if(latLng){
-    L.circleMarker(latLng, { radius: 8, color: 'blue', pane: 'routePane' }).addTo(map);
+    const userIcon = L.divIcon({
+      className: "",
+      html: `
+        <svg width="40" height="40" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="14" fill="rgba(37, 99, 235, 0.2)">
+            <animate attributeName="r" values="14;20;14" dur="1.5s" repeatCount="indefinite" />
+            <animate attributeName="opacity" values="0.5;0;0.5" dur="1.5s" repeatCount="indefinite" />
+          </circle>
+          <circle cx="20" cy="20" r="8" fill="#2563EB" stroke="#fff" stroke-width="2"/>
+        </svg>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20] // center the icon
+    });
+    
+    const marker = L.marker(latLng, { icon: userIcon }).addTo(map);
+    
   }
 }
 
 function setBuildingAccent(buildingId ,accent) {
-  const building = document.querySelectorAll(`#${buildingId}`);
-  building.classList.remove("unassigned", "assigned", "clicked");
-  building.classList.add(accent);
+
+  let cls = "";
+  switch(accent) {
+    case "unassigned":
+      cls = "st1";
+      break;
+    case "assigned":
+      cls = "st2";
+      break;
+    case "clicked":
+      cls = "st0";
+      break;
+    default:
+      console.warn(`Unknown accent type: ${accent}`);
+      return;
+  }
+  const building = document.querySelector(`#${buildingId}`);
+if (building) {
+  building.classList.remove("st1", "st2", "st0"); // remove previous accent classes
+  building.classList.add(cls);
+} else {
+  console.warn("Building not found:", buildingId);
+}
+
+
 }
 
 
@@ -136,10 +177,14 @@ let buildingClickListner = [];
 function addBuildingClickListner(listener) {
   buildingClickListner.push(listener);
 
+  console.log("Added building click listener. Total:", buildingClickListner.length);
+
+
   // Return an "unsubscribe" function
   return () => {
     removeBuildingClickListner(listener);
   };
+
 }
 
 function removeBuildingClickListner(listener) {
@@ -196,11 +241,17 @@ function sendMessage(type, data) {
 
 function addMessageListner(type, listner) {
   socket.on(type, listner);
+  return () => {
+    socket.off(type, listner); // cleanup on unmount
+    console.log(`Removed message listener for type: ${type}`);
+  };
 }
 
 function stopGps() {
   navigator.geolocation.clearWatch(watchId);
+  console.log("GPS tracking stopped.");
 }
+
 
 export {
   map, 
@@ -215,7 +266,10 @@ export {
   stopGps, 
   drawMarker, 
   addMessageListner, 
-  sendMessage 
+
+  sendMessage,
+  setBuildingAccent
+
 };
 
 
