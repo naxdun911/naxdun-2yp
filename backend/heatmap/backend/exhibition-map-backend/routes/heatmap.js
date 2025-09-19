@@ -1,6 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const pool = require('../heatmap_db'); // pg Pool instance
+const { predictBuildingOccupancy } = require('../utils/holtPrediction');
 
 const router = express.Router();
 
@@ -109,7 +110,50 @@ router.get("/map-data", async (req, res) => {
       const color = getHeatmapColor(building.total_count, capacityMap[building.building_id] );
       const timestamp = new Date().toLocaleString();
 
-      coloredBuildings.push({ ...pick(building, ["building_id","Build_Name", "total_count"]),building_capacity:capacityMap[building.building_id] , color, status_timestamp: timestamp });
+      // Get recent historical data for prediction
+      let predictedCount = building.total_count; // Default to current count
+      let predictionConfidence = 'low';
+      
+      try {
+        const historyResult = await pool.query(
+          `SELECT current_crowd, timestamp 
+           FROM building_history 
+           WHERE building_id = $1 
+             AND timestamp >= NOW() - INTERVAL '24 hours'
+           ORDER BY timestamp ASC
+           LIMIT 50`,
+          [building.building_id]
+        );
+        
+        if (historyResult.rows.length >= 3) {
+          const historicalData = historyResult.rows.map(row => ({
+            timestamp: row.timestamp,
+            current_count: row.current_crowd
+          }));
+          
+          const prediction = predictBuildingOccupancy(historicalData, {
+            forecastSteps: 1,
+            autoTune: true,
+            minDataPoints: 3
+          });
+          
+          if (prediction && prediction.method !== 'fallback') {
+            predictedCount = prediction.prediction;
+            predictionConfidence = prediction.confidence;
+          }
+        }
+      } catch (predictionError) {
+        console.error(`Prediction error for building ${building.building_id}:`, predictionError.message);
+      }
+
+      coloredBuildings.push({ 
+        ...pick(building, ["building_id","Build_Name", "total_count"]),
+        building_capacity: capacityMap[building.building_id], 
+        color, 
+        status_timestamp: timestamp,
+        predicted_count: predictedCount,
+        prediction_confidence: predictionConfidence
+      });
 
       //console.log(building.total_count,building.building_id);
       // Insert or update current_status table
@@ -201,6 +245,97 @@ router.get("/building/:buildingId/history", async (req, res) => {
       data: buildingData
     });
 
+  } catch (error) {
+    console.error("Error fetching building history:", error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Route to get historical data and predictions for a specific building
+router.get("/building/:buildingId/history", async (req, res) => {
+  try {
+    const { buildingId } = req.params;
+    const hours = parseInt(req.query.hours) || 24;
+    
+    // Get building info
+    const buildingResult = await pool.query(
+      "SELECT building_id, building_name, building_capacity FROM buildings WHERE building_id = $1",
+      [buildingId]
+    );
+    
+    if (buildingResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Building not found"
+      });
+    }
+    
+    const building = buildingResult.rows[0];
+    
+    // Get current status
+    const currentResult = await pool.query(
+      "SELECT current_crowd, color, status_timestamp FROM current_status WHERE building_id = $1",
+      [buildingId]
+    );
+    
+    // Get historical data
+    const historyResult = await pool.query(
+      `SELECT current_crowd, timestamp 
+       FROM building_history 
+       WHERE building_id = $1 
+         AND timestamp >= NOW() - INTERVAL '${hours} hours'
+       ORDER BY timestamp ASC`,
+      [buildingId]
+    );
+    
+    // Format historical data for prediction
+    const historicalData = historyResult.rows.map(row => ({
+      timestamp: row.timestamp,
+      current_count: row.current_crowd,
+      occupancy_rate: building.building_capacity > 0 
+        ? Math.round((row.current_crowd / building.building_capacity) * 100) 
+        : 0
+    }));
+    
+    // Generate predictions using Holt's method
+    let prediction = null;
+    if (historicalData.length > 0) {
+      try {
+        prediction = predictBuildingOccupancy(historicalData, {
+          forecastSteps: 3, // Predict next 3 time periods
+          autoTune: true,
+          minDataPoints: 3
+        });
+      } catch (error) {
+        console.error('Prediction error for building', buildingId, ':', error.message);
+      }
+    }
+    
+    // Get current data
+    const currentCount = currentResult.rows.length > 0 ? currentResult.rows[0].current_crowd : 0;
+    const currentColor = currentResult.rows.length > 0 ? currentResult.rows[0].color : '#cccccc';
+    const lastUpdated = currentResult.rows.length > 0 ? currentResult.rows[0].status_timestamp : null;
+    
+    res.json({
+      success: true,
+      data: {
+        buildingId: building.building_id,
+        buildingName: building.building_name,
+        capacity: building.building_capacity,
+        currentCount,
+        currentColor,
+        lastUpdated,
+        predictedCount: prediction ? prediction.prediction : currentCount,
+        predictionConfidence: prediction ? prediction.confidence : 'low',
+        predictionMethod: prediction ? prediction.method : 'fallback',
+        history: historicalData,
+        prediction: prediction
+      }
+    });
+    
   } catch (error) {
     console.error("Error fetching building history:", error.message);
     res.status(500).json({
