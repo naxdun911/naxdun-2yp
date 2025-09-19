@@ -1,20 +1,45 @@
 // Simple API client for the frontend to talk to the backend (code 1)
 // Uses VITE_API_BASE if provided, else defaults to http://localhost:5000
+// For heatmap backend, use specific port 3897
 
 const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_MAIN_API_URL || 'http://localhost:5000';
+const HEATMAP_API_BASE = import.meta.env.VITE_HEATMAP_API_BASE || 'http://localhost:3897';
 
 export async function fetchCrowd(intervalMinutes = 30) {
-  const url = `${API_BASE}/api/crowd?interval=${encodeURIComponent(intervalMinutes)}`;
+  const url = `${HEATMAP_API_BASE}/heatmap/map-data?interval=${encodeURIComponent(intervalMinutes)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch crowd data (${res.status})`);
   return res.json();
 }
 
 export async function fetchBuildingHistoryByName(buildingName) {
-  const url = `${API_BASE}/api/building-history/${encodeURIComponent(buildingName)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch history for ${buildingName} (${res.status})`);
-  return res.json();
+  // First, get the current map data to find the building ID by name
+  const mapDataUrl = `${HEATMAP_API_BASE}/heatmap/map-data`;
+  const mapRes = await fetch(mapDataUrl);
+  if (!mapRes.ok) throw new Error(`Failed to fetch map data (${mapRes.status})`);
+  const mapData = await mapRes.json();
+  
+  // Find the building by name
+  const building = mapData.buildings?.find(b => 
+    b.buildingName === buildingName || b.name === buildingName
+  );
+  
+  if (!building) {
+    throw new Error(`Building "${buildingName}" not found`);
+  }
+  
+  // Now fetch the history using the building ID
+  const historyUrl = `${HEATMAP_API_BASE}/heatmap/building/${building.buildingId || building.id}/history`;
+  const historyRes = await fetch(historyUrl);
+  if (!historyRes.ok) throw new Error(`Failed to fetch history for ${buildingName} (${historyRes.status})`);
+  
+  const historyData = await historyRes.json();
+  
+  // Transform the data to match the expected format for the frontend
+  return historyData.map(item => ({
+    timestamp: new Date(item.timestamp).toLocaleTimeString(),
+    current_count: item.current_crowd || item.current_count
+  }));
 }
 
 // Get interval options from frontend env (comma-separated), else default list
