@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 
 // A data-driven HeatMap component that renders building tiles from backend data
 // Props:
-// - data: Array<{ buildingId, buildingName?, color?, count, capacity? }>
+// - data: Array<{ buildingId, buildingName?, color?, count, capacity?, predicted_count?, prediction_confidence? }>
 // - onSelectBuilding?: (id) => void
 // - selectedBuilding?: string | number
 const HeatMap = ({ data = [], onSelectBuilding, selectedBuilding } = {}) => {
@@ -11,9 +11,17 @@ const HeatMap = ({ data = [], onSelectBuilding, selectedBuilding } = {}) => {
     const max = data.reduce((m, d) => Math.max(m, Number(d.count) || 0), 0) || 1;
     const items = data.map(d => {
       const count = Number(d.count) || 0;
+      const predicted = Number(d.predicted_count) || count;
       const cap = Number(d.capacity) || 0;
       const intensity = cap > 0 ? Math.min(1, count / cap) : (count / max);
-      return { ...d, count, capacity: cap || undefined, intensity };
+      return { 
+        ...d, 
+        count, 
+        predicted_count: predicted,
+        capacity: cap || undefined, 
+        intensity,
+        prediction_confidence: d.prediction_confidence || 'low'
+      };
     });
     return { items, maxCount: max };
   }, [data]);
@@ -83,18 +91,35 @@ const HeatMap = ({ data = [], onSelectBuilding, selectedBuilding } = {}) => {
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>{b.buildingName || `Building ${b.buildingId}`}</div>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>ID: {b.buildingId}</div>
               </div>
-              <div style={{ fontWeight: 700 }}>{b.count}</div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 700, fontSize: '16px' }}>{b.count}</div>
+                {b.predicted_count !== b.count && (
+                  <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 500 }}>
+                    ↗ {b.predicted_count}
+                  </div>
+                )}
+              </div>
             </div>
             <div style={{ marginTop: 10, width: '100%', height: 10, background: '#e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
               <div style={{ width: `${Math.min(100, Math.round(b.intensity * 100))}%`, height: '100%', background: b.color || getColor(b.intensity), transition: 'width 0.3s ease' }} />
             </div>
             {b.capacity ? (
               <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280' }}>
-                {Math.round(b.intensity * 100)}% of capacity ({b.count} / {b.capacity})
+                <div>{Math.round(b.intensity * 100)}% of capacity ({b.count} / {b.capacity})</div>
+                {b.predicted_count !== b.count && (
+                  <div style={{ color: '#10b981' }}>
+                    Predicted: {b.predicted_count} ({b.prediction_confidence} confidence)
+                  </div>
+                )}
               </div>
             ) : (
               <div style={{ marginTop: 6, fontSize: 12, color: '#6b7280' }}>
-                Relative intensity based on max count ({maxCount})
+                <div>Relative intensity based on max count ({maxCount})</div>
+                {b.predicted_count !== b.count && (
+                  <div style={{ color: '#10b981' }}>
+                    Predicted: {b.predicted_count} ({b.prediction_confidence} confidence)
+                  </div>
+                )}
               </div>
             )}
           </button>
