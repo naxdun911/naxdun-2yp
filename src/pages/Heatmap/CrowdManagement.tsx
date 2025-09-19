@@ -268,21 +268,26 @@ const CrowdManagement: React.FC = () => {
     };
   }, [fetchData, pollSeconds]);
 
-  // Filter data by building or search term
+  // Filter data only by search term - always show all buildings in the main chart
   const filteredData: CrowdData[] = useMemo(() => {
-    if (selectedBuilding !== "all") {
-      // If a specific building is selected, show only that building
-      return crowdData.filter((d) => d.buildingId === selectedBuilding);
-    } else if (searchTerm.trim()) {
+    if (searchTerm.trim()) {
       // If searching, filter by building name
       return crowdData.filter((d) =>
         d.buildingName.toLowerCase().includes(searchTerm.toLowerCase())
       );
     } else {
-      // Show all buildings
+      // Always show all buildings in the main chart
       return crowdData;
     }
-  }, [crowdData, selectedBuilding, searchTerm]);
+  }, [crowdData, searchTerm]);
+
+  // Get data for selected building only (for the detailed charts below)
+  const selectedBuildingData: CrowdData[] = useMemo(() => {
+    if (selectedBuilding !== "all") {
+      return crowdData.filter((d) => d.buildingId === selectedBuilding);
+    }
+    return [];
+  }, [crowdData, selectedBuilding]);
 
   const fetchBuildingHistory = useCallback(async (): Promise<void> => {
     if (selectedBuilding === "all") return;
@@ -614,9 +619,24 @@ const CrowdManagement: React.FC = () => {
                             <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" opacity={0.7} />
                             <XAxis 
                               dataKey="buildingName"
-                              tick={{ fontSize: 10, fill: '#374151' }}
-                              angle={-45}
-                              textAnchor="end"
+                              tick={({ x, y, payload }) => {
+                                const isSelected = selectedBuilding !== "all" && payload.value && 
+                                  filteredData.find(d => d.buildingName === payload.value)?.buildingId === selectedBuilding;
+                                return (
+                                  <text 
+                                    x={x} 
+                                    y={y} 
+                                    dy={16} 
+                                    textAnchor="end" 
+                                    fill={isSelected ? '#ff6b6b' : '#374151'} 
+                                    fontSize={10}
+                                    fontWeight={isSelected ? 'bold' : 'normal'}
+                                    transform={`rotate(-45 ${x} ${y})`}
+                                  >
+                                    {payload.value}
+                                  </text>
+                                );
+                              }}
                               height={90}
                               interval={0}
                               stroke="#6b7280"
@@ -634,6 +654,30 @@ const CrowdManagement: React.FC = () => {
                                 boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
                                 fontSize: '13px'
                               }}
+                              formatter={(value, name, props) => {
+                                const isSelected = selectedBuilding !== "all" && props.payload.buildingId === selectedBuilding;
+                                return [
+                                  <span style={{ 
+                                    color: isSelected ? (name === 'Current Count' ? '#ff6b6b' : '#ff9f43') : (name === 'Current Count' ? '#8884d8' : '#82ca9d'), 
+                                    fontWeight: isSelected ? 'bold' : 'normal' 
+                                  }}>
+                                    {value} {isSelected ? '(Selected)' : ''}
+                                  </span>,
+                                  name
+                                ];
+                              }}
+                              labelFormatter={(label) => {
+                                const isSelected = selectedBuilding !== "all" && 
+                                  filteredData.find(d => d.buildingName === label)?.buildingId === selectedBuilding;
+                                return (
+                                  <span style={{ 
+                                    color: isSelected ? '#ff6b6b' : '#374151',
+                                    fontWeight: isSelected ? 'bold' : 'normal'
+                                  }}>
+                                    {label} {isSelected ? '(Selected Building)' : ''}
+                                  </span>
+                                );
+                              }}
                             />
                             <Legend 
                               wrapperStyle={{
@@ -646,10 +690,41 @@ const CrowdManagement: React.FC = () => {
                               type="monotone" 
                               dataKey="currentCount" 
                               name="Current Count" 
-                              stroke="#8884d8" 
+                              stroke="#8884d8"
                               strokeWidth={3}
-                              dot={{ r: 6, fill: '#8884d8', strokeWidth: 2, stroke: '#ffffff' }}
-                              activeDot={{ r: 8, fill: '#8884d8', strokeWidth: 3, stroke: '#ffffff' }} 
+                              dot={(props) => {
+                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
+                                return (
+                                  <circle
+                                    cx={props.cx}
+                                    cy={props.cy}
+                                    r={isSelected ? 8 : 6}
+                                    fill={isSelected ? '#ff6b6b' : '#8884d8'}
+                                    strokeWidth={2}
+                                    stroke="#ffffff"
+                                    style={{ 
+                                      opacity: selectedBuilding === "all" ? 1 : (isSelected ? 1 : 0.4),
+                                      filter: isSelected ? 'drop-shadow(0 0 6px rgba(255, 107, 107, 0.6))' : 'none'
+                                    }}
+                                  />
+                                );
+                              }}
+                              activeDot={(props) => {
+                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
+                                return (
+                                  <circle
+                                    cx={props.cx}
+                                    cy={props.cy}
+                                    r={isSelected ? 12 : 8}
+                                    fill={isSelected ? '#ff6b6b' : '#8884d8'}
+                                    strokeWidth={3}
+                                    stroke="#ffffff"
+                                    style={{ 
+                                      filter: isSelected ? 'drop-shadow(0 0 8px rgba(255, 107, 107, 0.8))' : 'none'
+                                    }}
+                                  />
+                                );
+                              }}
                             />
                             <Line 
                               type="monotone" 
@@ -658,24 +733,43 @@ const CrowdManagement: React.FC = () => {
                               stroke="#82ca9d" 
                               strokeWidth={3}
                               strokeDasharray="5 5"
-                              dot={{ r: 6, fill: '#82ca9d', strokeWidth: 2, stroke: '#ffffff' }}
-                              activeDot={{ r: 8, fill: '#82ca9d', strokeWidth: 3, stroke: '#ffffff' }}
+                              dot={(props) => {
+                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
+                                return (
+                                  <circle
+                                    cx={props.cx}
+                                    cy={props.cy}
+                                    r={isSelected ? 8 : 6}
+                                    fill={isSelected ? '#ff9f43' : '#82ca9d'}
+                                    strokeWidth={2}
+                                    stroke="#ffffff"
+                                    style={{ 
+                                      opacity: selectedBuilding === "all" ? 1 : (isSelected ? 1 : 0.4),
+                                      filter: isSelected ? 'drop-shadow(0 0 6px rgba(255, 159, 67, 0.6))' : 'none'
+                                    }}
+                                  />
+                                );
+                              }}
+                              activeDot={(props) => {
+                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
+                                return (
+                                  <circle
+                                    cx={props.cx}
+                                    cy={props.cy}
+                                    r={isSelected ? 12 : 8}
+                                    fill={isSelected ? '#ff9f43' : '#82ca9d'}
+                                    strokeWidth={3}
+                                    stroke="#ffffff"
+                                    style={{ 
+                                      filter: isSelected ? 'drop-shadow(0 0 8px rgba(255, 159, 67, 0.8))' : 'none'
+                                    }}
+                                  />
+                                );
+                              }}
                             />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
-                    </div>
-                  </div>
-                  
-                  {/* Chart Info */}
-                  <div className="mt-6 flex items-center justify-center">
-                    <div className="bg-blue-50 px-6 py-3 rounded-full border border-blue-200">
-                      <p className="text-sm text-blue-700 font-medium flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        Scroll horizontally to view all {filteredData.length} buildings
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -711,23 +805,21 @@ const CrowdManagement: React.FC = () => {
                   {/* Gauge Chart */}
                   <div className="bg-gray-50 rounded-lg p-6">
                     <h4 className="text-lg font-semibold text-gray-800 mb-4">Current Occupancy</h4>
-                    {crowdData
-                      .filter(d => d.buildingId === selectedBuilding)
-                      .map(building => (
-                        <GaugeChart
-                          key={building.buildingId}
-                          value={building.currentCount}
-                          max={getBuildingCapacity(building.buildingId)}
-                          title={`Occupancy`}
-                        />
-                      ))}
+                    {selectedBuildingData.map(building => (
+                      <GaugeChart
+                        key={building.buildingId}
+                        value={building.currentCount}
+                        max={getBuildingCapacity(building.buildingId)}
+                        title={`Occupancy`}
+                      />
+                    ))}
                   </div>
                   
                   {/* Bar Chart */}
                   <div className="bg-gray-50 rounded-lg p-6">
                     <h4 className="text-lg font-semibold text-gray-800 mb-4">Current vs Predicted</h4>
                     <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={filteredData}>
+                      <BarChart data={selectedBuildingData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="timestamp" hide />
                         <YAxis />
