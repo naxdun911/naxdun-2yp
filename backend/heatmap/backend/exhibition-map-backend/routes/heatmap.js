@@ -122,6 +122,13 @@ router.get("/map-data", async (req, res) => {
                        status_timestamp = EXCLUDED.status_timestamp`,
         [building.building_id, building.total_count, color, timestamp]
       );
+
+      // Also insert into building_history for historical tracking
+      await pool.query(
+        `INSERT INTO building_history (building_id, current_crowd, timestamp)
+         VALUES ($1, $2, NOW())`,
+        [building.building_id, building.total_count]
+      );
     }
 
     res.json({
@@ -135,6 +142,70 @@ router.get("/map-data", async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.response?.data || error.message,
+    });
+  }
+});
+
+// Route to get historical data for a specific building
+router.get("/building/:buildingId/history", async (req, res) => {
+  try {
+    const { buildingId } = req.params;
+    const { hours = 24 } = req.query; // Default to last 24 hours
+
+    // Get historical data for the building
+    const historyResult = await pool.query(
+      `SELECT 
+         bh.current_crowd,
+         bh.timestamp,
+         b.building_name,
+         b.building_capacity
+       FROM building_history bh
+       JOIN buildings b ON bh.building_id = b.building_id
+       WHERE bh.building_id = $1 
+         AND bh.timestamp >= NOW() - INTERVAL '${parseInt(hours)} hours'
+       ORDER BY bh.timestamp DESC
+       LIMIT 100`,
+      [buildingId]
+    );
+
+    // Get current status
+    const currentResult = await pool.query(
+      `SELECT 
+         cs.current_crowd,
+         cs.color,
+         cs.status_timestamp,
+         b.building_name,
+         b.building_capacity
+       FROM current_status cs
+       JOIN buildings b ON cs.building_id = b.building_id
+       WHERE cs.building_id = $1`,
+      [buildingId]
+    );
+
+    const buildingData = {
+      buildingId,
+      buildingName: currentResult.rows[0]?.building_name || '',
+      capacity: currentResult.rows[0]?.building_capacity || 0,
+      currentCount: currentResult.rows[0]?.current_crowd || 0,
+      currentColor: currentResult.rows[0]?.color || '',
+      lastUpdated: currentResult.rows[0]?.status_timestamp || '',
+      history: historyResult.rows.map(row => ({
+        timestamp: row.timestamp,
+        current_count: row.current_crowd,
+        occupancy_rate: row.building_capacity > 0 ? (row.current_crowd / row.building_capacity * 100).toFixed(1) : 0
+      }))
+    };
+
+    res.json({
+      success: true,
+      data: buildingData
+    });
+
+  } catch (error) {
+    console.error("Error fetching building history:", error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message
     });
   }
 });
