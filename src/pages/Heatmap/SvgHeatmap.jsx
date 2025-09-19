@@ -1,6 +1,7 @@
 // SvgHeatmap.jsx
 import { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
+import BuildingChartsModal from "./BuildingChartsModal.tsx";
 
 const SVG_URL = "/campus.svg";
 // If you use a Vite proxy, set API_URL = "/heatmap/map-data"
@@ -86,6 +87,8 @@ export default function SvgHeatmap() {
   useEffect(() => { colorsRef.current = buildingColors; }, [buildingColors]);
 
   const [popup, setPopup] = useState(null);
+  const [showChartsModal, setShowChartsModal] = useState(false);
+  const [selectedBuildingForCharts, setSelectedBuildingForCharts] = useState(null);
 
   /* -------- Derived lists -------- */
   const list = useMemo(() => {
@@ -424,6 +427,33 @@ export default function SvgHeatmap() {
                     <div className="fill" style={{ width: `var(--p)` }} />
                   </div>
                 )}
+                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                  <button 
+                    onClick={() => {
+                      setSelectedBuildingForCharts({
+                        id: popup.id,
+                        name: popup.name
+                      });
+                      setShowChartsModal(true);
+                      setPopup(null);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      background: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                    onMouseOver={(e) => e.target.style.background = '#2563eb'}
+                    onMouseOut={(e) => e.target.style.background = '#3b82f6'}
+                  >
+                    📊 View Charts & Analytics
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -471,6 +501,18 @@ export default function SvgHeatmap() {
           </div>
         </aside>
       </main>
+
+      {/* Building Charts Modal */}
+      {showChartsModal && selectedBuildingForCharts && (
+        <BuildingChartsModal
+          buildingId={selectedBuildingForCharts.id}
+          buildingName={selectedBuildingForCharts.name}
+          onClose={() => {
+            setShowChartsModal(false);
+            setSelectedBuildingForCharts(null);
+          }}
+        />
+      )}
 
       <style>{`
         :root{ color-scheme: light; }
