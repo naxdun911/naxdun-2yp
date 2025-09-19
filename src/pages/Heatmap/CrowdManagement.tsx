@@ -1,22 +1,16 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { RefreshCw, AlertTriangle, Bell, BellOff } from "lucide-react";
 import SvgHeatmap from "./SvgHeatmap.jsx";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import GaugeChart from './HeatMapAnalysis/GaugeChart';
-import EnhancedSearchBar from "./HeatMapAnalysis/EnhancedSearchBar";
 import { LoadingView, ErrorView } from "./utils/uiHelpers";
-import { fetchBuildingHistoryByName, getIntervalOptions, getPollOptions } from "./utils/api";
 
 interface CrowdData {
   buildingId: string;  // Changed from number to string to match database
@@ -26,11 +20,6 @@ interface CrowdData {
   timestamp: string;
   color: string;
   capacity: number;  // Made required since we have it in database
-}
-
-interface BuildingHistoryData {
-  timestamp: string;
-  current_count: number;
 }
 
 interface CapacityAlert {
@@ -56,10 +45,7 @@ const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"current" | "predicted">("current");
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [buildingHistory, setBuildingHistory] = useState<BuildingHistoryData[]>([]);
+  // Removed viewMode and searchTerm state
   
   // Capacity Alert States
   const [alerts, setAlerts] = useState<CapacityAlert[]>([]);
@@ -71,18 +57,9 @@ const CrowdManagement: React.FC = () => {
     showNotifications: true
   });
   
-  const intervalOptions = getIntervalOptions();
-  const [intervalMinutes, setIntervalMinutes] = useState<number>(() => 
-    intervalOptions.includes(30) ? 30 : intervalOptions[0]
-  );
-  
-  const pollOptions = getPollOptions();
-  const [pollSeconds, setPollSeconds] = useState<number>(() => 
-    pollOptions.includes(10) ? 10 : pollOptions[0]
-  );
+  // Removed interval and poll options (Horizon, Auto-refresh)
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const historyIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Request notification permission on component mount
   useEffect(() => {
@@ -90,12 +67,6 @@ const CrowdManagement: React.FC = () => {
       Notification.requestPermission();
     }
   }, []);
-
-  // Get building capacity from the building data
-  const getBuildingCapacity = useCallback((buildingId: string): number => {
-    const building = crowdData.find(d => d.buildingId === buildingId);
-    return building?.capacity || 100; // Default fallback
-  }, [crowdData]);
 
   // Check for capacity alerts - memoized to prevent unnecessary re-renders
   const checkCapacityAlerts = useCallback((data: CrowdData[]): CapacityAlert[] => {
@@ -133,25 +104,6 @@ const CrowdManagement: React.FC = () => {
     
     return newAlerts;
   }, [alertSettings.enabled, alertSettings.warningThreshold, alertSettings.criticalThreshold, alertSettings.fullThreshold]);
-
-  // Fetch building history data when a building is selected, and refresh every 5 seconds
-  useEffect(() => {
-    if (selectedBuilding !== "all") {
-      fetchBuildingHistory();
-      historyIntervalRef.current = setInterval(fetchBuildingHistory, 5000);
-    } else {
-      setBuildingHistory([]);
-      if (historyIntervalRef.current) {
-        clearInterval(historyIntervalRef.current);
-      }
-    }
-
-    return () => {
-      if (historyIntervalRef.current) {
-        clearInterval(historyIntervalRef.current);
-      }
-    };
-  }, [selectedBuilding]);
 
   const fetchData = useCallback(async (): Promise<void> => {
     try {
@@ -219,101 +171,26 @@ const CrowdManagement: React.FC = () => {
     }
   }, [checkCapacityAlerts, alertSettings.showNotifications]);
 
-  // Fetch crowd data initially and then on a user-defined cadence (seconds). 0 means paused.
+  // Fetch crowd data initially (removed auto-refresh logic)
   useEffect(() => {
-    // Only set loading to true on the initial fetch
     if (crowdData.length === 0) {
       setLoading(true);
     }
-    
     fetchData();
-    
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    if (pollSeconds > 0) {
-      intervalRef.current = setInterval(fetchData, pollSeconds * 1000);
-    }
-    
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchData, pollSeconds]);
+  }, [fetchData]);
 
-  // Filter data only by search term - always show all buildings in the main chart
-  const filteredData: CrowdData[] = useMemo(() => {
-    if (searchTerm.trim()) {
-      // If searching, filter by building name
-      return crowdData.filter((d) =>
-        d.buildingName.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    } else {
-      // Always show all buildings in the main chart
-      return crowdData;
-    }
-  }, [crowdData, searchTerm]);
-
-  // Get data for selected building only (for the detailed charts below)
-  const selectedBuildingData: CrowdData[] = useMemo(() => {
-    if (selectedBuilding !== "all") {
-      return crowdData.filter((d) => d.buildingId === selectedBuilding);
-    }
-    return [];
-  }, [crowdData, selectedBuilding]);
-
-  const fetchBuildingHistory = useCallback(async (): Promise<void> => {
-    if (selectedBuilding === "all") return;
-    try {
-      const selectedBuildingData = crowdData.find(
-        (d) => d.buildingId === selectedBuilding
-      );
-      if (selectedBuildingData) {
-        const buildingName = selectedBuildingData.buildingName;
-        const data = await fetchBuildingHistoryByName(buildingName);
-        setBuildingHistory(data);
-      }
-    } catch (err) {
-      console.error("Error fetching building history:", err);
-      // Clear the building history on error, don't use mock data
-      setBuildingHistory([]);
-    }
-  }, [crowdData, selectedBuilding]);
-
-  // Fetch building history when a building is selected, with periodic refresh (same cadence)
-  useEffect(() => {
-    if (selectedBuilding !== "all") {
-      fetchBuildingHistory();
-      if (historyIntervalRef.current) clearInterval(historyIntervalRef.current);
-      if (pollSeconds > 0) {
-        historyIntervalRef.current = setInterval(fetchBuildingHistory, pollSeconds * 1000);
-      }
-    } else {
-      setBuildingHistory([]);
-      if (historyIntervalRef.current) clearInterval(historyIntervalRef.current);
-    }
-    return () => {
-      if (historyIntervalRef.current) clearInterval(historyIntervalRef.current);
-    };
-  }, [selectedBuilding, fetchBuildingHistory, pollSeconds]);
+  // Always show all buildings in the main chart
+  const filteredData: CrowdData[] = crowdData;
 
   const handleManualRefresh = useCallback(async () => {
     setLoading(true);
     await fetchData();
   }, [fetchData]);
 
-  const handleSearch = (query: string): void => {
-    setSearchTerm(query);
-    // If search is cleared, reset to show all buildings
-    if (!query.trim()) {
-      setSelectedBuilding("all");
-    }
-  };
-
-  const handleBuildingSelect = (id: string): void => {
-    setSelectedBuilding(id);
-    // Clear search when building is selected from dropdown or search suggestions
-    if (id !== "all") {
-      setSearchTerm("");
-    }
-  };
+  // Removed search handler
 
   if (loading) {
     return (
@@ -378,98 +255,9 @@ const CrowdManagement: React.FC = () => {
           <strong>Live Data Time:</strong> {crowdData[0]?.timestamp || "--:--"}
         </div>
 
-        {/* Controls Section */}
+        {/* Controls Section - Only Alerts remain */}
         <div className="bg-white p-6 rounded-xl shadow-sm mb-8 relative z-20">
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <label className="text-sm font-medium text-gray-700">View Mode:</label>
-              <select
-                value={viewMode}
-                onChange={(e) => setViewMode(e.target.value as "current" | "predicted")}
-                className="px-3 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm transition-all duration-150 min-w-[150px] focus:outline-none focus:border-blue-500 focus:shadow-sm focus:shadow-blue-100"
-              >
-                <option value="current">Current</option>
-                <option value="predicted">Predicted</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <label className="text-sm font-medium text-gray-700">Building:</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setSelectedBuilding("all");
-                    setSearchTerm("");
-                  }}
-                  className={`px-4 py-3 border rounded-lg font-medium text-sm transition-all duration-150 focus:outline-none ${
-                    selectedBuilding === "all"
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  All
-                </button>
-                <select
-                  value={selectedBuilding}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSelectedBuilding(value);
-                    // Clear search when building is selected from dropdown
-                    if (value !== "all") {
-                      setSearchTerm("");
-                    }
-                  }}
-                  className="px-3 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm transition-all duration-150 min-w-[150px] focus:outline-none focus:border-blue-500 focus:shadow-sm focus:shadow-blue-100"
-                >
-                  <option value="all">All Buildings</option>
-                  {crowdData.map((d) => (
-                    <option key={d.buildingId} value={d.buildingId}>
-                      {d.buildingName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <label className="text-sm font-medium text-gray-700">Horizon (mins):</label>
-              <select
-                value={intervalMinutes}
-                onChange={(e) => setIntervalMinutes(Number(e.target.value))}
-                className="px-3 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm transition-all duration-150 min-w-[150px] focus:outline-none focus:border-blue-500 focus:shadow-sm focus:shadow-blue-100"
-              >
-                {intervalOptions.map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <label className="text-sm font-medium text-gray-700">Auto-refresh (sec):</label>
-              <select
-                value={pollSeconds}
-                onChange={(e) => setPollSeconds(Number(e.target.value))}
-                className="px-3 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm transition-all duration-150 min-w-[150px] focus:outline-none focus:border-blue-500 focus:shadow-sm focus:shadow-blue-100"
-              >
-                {pollOptions.map(s => (
-                  <option key={s} value={s}>{s === 0 ? "Paused" : s}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <label className="text-sm font-medium text-gray-700">Search Buildings:</label>
-              <EnhancedSearchBar 
-                onSearch={handleSearch}
-                onBuildingSelect={handleBuildingSelect}
-                buildings={crowdData.map(d => ({
-                  buildingId: d.buildingId,
-                  buildingName: d.buildingName
-                }))}
-                placeholder="Search buildings..."
-              />
-            </div>
-
+          <div className="flex items-center gap-6">
             <div className="flex flex-col gap-2 flex-shrink-0">
               <label className="text-sm font-medium text-gray-700">Alerts:</label>
               <button
@@ -603,9 +391,6 @@ const CrowdManagement: React.FC = () => {
                             <XAxis 
                               dataKey="buildingName"
                               tick={({ x, y, payload }) => {
-                                const isSelected = selectedBuilding !== "all" && payload.value && 
-                                  filteredData.find(d => d.buildingName === payload.value)?.buildingId === selectedBuilding;
-                                
                                 // Split long building names into multiple lines for horizontal display
                                 const text = payload.value || '';
                                 const words = text.split(' ');
@@ -631,9 +416,9 @@ const CrowdManagement: React.FC = () => {
                                         y={y + (index * 12)} 
                                         dy={16} 
                                         textAnchor="middle" 
-                                        fill={isSelected ? '#ff6b6b' : '#374151'} 
+                                        fill="#374151"
                                         fontSize={9}
-                                        fontWeight={isSelected ? 'bold' : 'normal'}
+                                        fontWeight="normal"
                                       >
                                         {line}
                                       </text>
@@ -658,30 +443,17 @@ const CrowdManagement: React.FC = () => {
                                 boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
                                 fontSize: '13px'
                               }}
-                              formatter={(value, name, props) => {
-                                const isSelected = selectedBuilding !== "all" && props.payload.buildingId === selectedBuilding;
-                                return [
-                                  <span style={{ 
-                                    color: isSelected ? (name === 'Current Count' ? '#ff6b6b' : '#ff9f43') : (name === 'Current Count' ? '#8884d8' : '#82ca9d'), 
-                                    fontWeight: isSelected ? 'bold' : 'normal' 
-                                  }}>
-                                    {value} {isSelected ? '(Selected)' : ''}
-                                  </span>,
-                                  name
-                                ];
-                              }}
-                              labelFormatter={(label) => {
-                                const isSelected = selectedBuilding !== "all" && 
-                                  filteredData.find(d => d.buildingName === label)?.buildingId === selectedBuilding;
-                                return (
-                                  <span style={{ 
-                                    color: isSelected ? '#ff6b6b' : '#374151',
-                                    fontWeight: isSelected ? 'bold' : 'normal'
-                                  }}>
-                                    {label} {isSelected ? '(Selected Building)' : ''}
-                                  </span>
-                                );
-                              }}
+                              formatter={(value, name) => [
+                                <span style={{ color: name === 'Current Count' ? '#8884d8' : '#82ca9d' }}>
+                                  {value}
+                                </span>,
+                                name
+                              ]}
+                              labelFormatter={(label) => (
+                                <span style={{ color: '#374151' }}>
+                                  {label}
+                                </span>
+                              )}
                             />
                             <Line 
                               type="monotone" 
@@ -689,39 +461,8 @@ const CrowdManagement: React.FC = () => {
                               name="Current Count" 
                               stroke="#8884d8"
                               strokeWidth={3}
-                              dot={(props) => {
-                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
-                                return (
-                                  <circle
-                                    cx={props.cx}
-                                    cy={props.cy}
-                                    r={isSelected ? 8 : 6}
-                                    fill={isSelected ? '#ff6b6b' : '#8884d8'}
-                                    strokeWidth={2}
-                                    stroke="#ffffff"
-                                    style={{ 
-                                      opacity: selectedBuilding === "all" ? 1 : (isSelected ? 1 : 0.4),
-                                      filter: isSelected ? 'drop-shadow(0 0 6px rgba(255, 107, 107, 0.6))' : 'none'
-                                    }}
-                                  />
-                                );
-                              }}
-                              activeDot={(props) => {
-                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
-                                return (
-                                  <circle
-                                    cx={props.cx}
-                                    cy={props.cy}
-                                    r={isSelected ? 12 : 8}
-                                    fill={isSelected ? '#ff6b6b' : '#8884d8'}
-                                    strokeWidth={3}
-                                    stroke="#ffffff"
-                                    style={{ 
-                                      filter: isSelected ? 'drop-shadow(0 0 8px rgba(255, 107, 107, 0.8))' : 'none'
-                                    }}
-                                  />
-                                );
-                              }}
+                              dot={<circle r={6} fill="#8884d8" strokeWidth={2} stroke="#ffffff" />}
+                              activeDot={<circle r={8} fill="#8884d8" strokeWidth={3} stroke="#ffffff" />}
                             />
                             <Line 
                               type="monotone" 
@@ -730,39 +471,8 @@ const CrowdManagement: React.FC = () => {
                               stroke="#82ca9d" 
                               strokeWidth={3}
                               strokeDasharray="5 5"
-                              dot={(props) => {
-                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
-                                return (
-                                  <circle
-                                    cx={props.cx}
-                                    cy={props.cy}
-                                    r={isSelected ? 8 : 6}
-                                    fill={isSelected ? '#ff9f43' : '#82ca9d'}
-                                    strokeWidth={2}
-                                    stroke="#ffffff"
-                                    style={{ 
-                                      opacity: selectedBuilding === "all" ? 1 : (isSelected ? 1 : 0.4),
-                                      filter: isSelected ? 'drop-shadow(0 0 6px rgba(255, 159, 67, 0.6))' : 'none'
-                                    }}
-                                  />
-                                );
-                              }}
-                              activeDot={(props) => {
-                                const isSelected = selectedBuilding !== "all" && props.payload && props.payload.buildingId === selectedBuilding;
-                                return (
-                                  <circle
-                                    cx={props.cx}
-                                    cy={props.cy}
-                                    r={isSelected ? 12 : 8}
-                                    fill={isSelected ? '#ff9f43' : '#82ca9d'}
-                                    strokeWidth={3}
-                                    stroke="#ffffff"
-                                    style={{ 
-                                      filter: isSelected ? 'drop-shadow(0 0 8px rgba(255, 159, 67, 0.8))' : 'none'
-                                    }}
-                                  />
-                                );
-                              }}
+                              dot={<circle r={6} fill="#82ca9d" strokeWidth={2} stroke="#ffffff" />}
+                              activeDot={<circle r={8} fill="#82ca9d" strokeWidth={3} stroke="#ffffff" />}
                             />
                           </LineChart>
                         </ResponsiveContainer>
@@ -786,94 +496,6 @@ const CrowdManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-          {/* Selected Building Charts - Below Overall Trend */}
-          {selectedBuilding !== "all" && (
-            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-8 py-6 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-1">
-                      {crowdData.find(d => d.buildingId === selectedBuilding)?.buildingName}
-                    </h2>
-                    <p className="text-sm text-gray-600">Detailed analysis for selected building</p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedBuilding("all")}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Close
-                  </button>
-                </div>
-              </div>
-              
-              {/* Charts Container */}
-              <div className="p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {/* Gauge Chart */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Current Occupancy</h4>
-                    {selectedBuildingData.map(building => (
-                      <GaugeChart
-                        key={building.buildingId}
-                        value={building.currentCount}
-                        max={getBuildingCapacity(building.buildingId)}
-                        title={`Occupancy`}
-                      />
-                    ))}
-                  </div>
-                  
-                  {/* Bar Chart */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Current vs Predicted</h4>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={selectedBuildingData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="timestamp" hide />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="currentCount" fill="#8884d8" />
-                        <Bar dataKey="predictedCount" fill="#82ca9d" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  
-                  {/* Building History Chart */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                      Past 2 Minutes Variation
-                    </h4>
-                    {buildingHistory.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <LineChart data={buildingHistory}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="timestamp" hide />
-                          <YAxis />
-                          <Tooltip />
-                          <Line 
-                            type="monotone" 
-                            dataKey="current_count" 
-                            name="Current Count"
-                            stroke="#8884d8" 
-                            activeDot={{ r: 4 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex items-center justify-center h-[200px] text-gray-500">
-                        Loading history data...
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
