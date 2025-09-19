@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { X, TrendingUp, Users, Clock, AlertTriangle } from 'lucide-react';
+import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
+import { X, TrendingUp, Users, Clock, AlertTriangle, Brain, Target } from 'lucide-react';
 import axios from 'axios';
 
 const HEATMAP_API_URL = import.meta.env.VITE_HEATMAP_API_URL || "http://localhost:3897";
@@ -12,7 +12,20 @@ interface BuildingData {
   currentCount: number;
   currentColor: string;
   lastUpdated: string;
+  predictedCount: number;
+  predictionConfidence: string;
+  predictionMethod: string;
   history: HistoryItem[];
+  prediction: PredictionData | null;
+}
+
+interface PredictionData {
+  prediction: number;
+  confidence: string;
+  method: string;
+  forecasts: number[];
+  metrics: any;
+  parameters?: any;
 }
 
 interface HistoryItem {
@@ -54,7 +67,99 @@ const HistoryTooltip = ({ active, payload, label }: TooltipProps) => {
   return null;
 };
 
-// Occupancy gauge component
+// Prediction vs Actual comparison component
+const PredictionComparison = ({ current, predicted, capacity, confidence, className = "" }: {
+  current: number;
+  predicted: number;
+  capacity: number;
+  confidence: string;
+  className?: string;
+}) => {
+  const data = [
+    {
+      name: 'Current',
+      value: current,
+      percentage: capacity > 0 ? Math.round((current / capacity) * 100) : 0,
+      fill: '#3b82f6'
+    },
+    {
+      name: 'Predicted',
+      value: predicted,
+      percentage: capacity > 0 ? Math.round((predicted / capacity) * 100) : 0,
+      fill: '#10b981'
+    }
+  ];
+
+  const getConfidenceColor = () => {
+    switch (confidence) {
+      case 'high': return '#10b981';
+      case 'medium': return '#f59e0b';
+      case 'low': return '#ef4444';
+      default: return '#6b7280';
+    }
+  };
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white p-3 rounded shadow-lg border border-gray-200">
+          <div className="font-medium">{data.name}</div>
+          <div className="text-blue-600">Count: {data.value}</div>
+          <div className="text-gray-600">Occupancy: {data.percentage}%</div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className={`bg-white p-4 rounded-xl shadow-sm border border-gray-200 ${className}`}>
+      <h3 className="text-lg font-semibold mb-3 flex items-center">
+        <TrendingUp className="w-5 h-5 mr-2" />
+        Current vs Predicted
+      </h3>
+      
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-blue-600">{current}</div>
+          <div className="text-sm text-gray-600">Current Count</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-green-600">{predicted}</div>
+          <div className="text-sm text-gray-600">Predicted Count</div>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="name" />
+          <YAxis />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey="value">
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+
+      <div className="mt-3 flex items-center justify-between text-sm">
+        <div className="flex items-center">
+          <div 
+            className="w-3 h-3 rounded-full mr-2" 
+            style={{ backgroundColor: getConfidenceColor() }}
+          />
+          <span>Confidence: <span className="font-medium capitalize">{confidence}</span></span>
+        </div>
+        <div className="text-gray-600">
+          Difference: {predicted - current > 0 ? '+' : ''}{predicted - current}
+        </div>
+      </div>
+    </div>
+  );
+};
 const OccupancyGauge = ({ current, capacity, className = "" }: OccupancyGaugeProps) => {
   const percentage = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
   const getColor = () => {
@@ -242,7 +347,7 @@ const BuildingChartsModal = ({ buildingId, buildingName, onClose }: BuildingChar
         {/* Content */}
         <div className="p-6">
           {/* Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="flex items-center">
                 <Users className="w-5 h-5 text-blue-600 mr-2" />
@@ -254,6 +359,19 @@ const BuildingChartsModal = ({ buildingId, buildingName, onClose }: BuildingChar
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="flex items-center">
                 <TrendingUp className="w-5 h-5 text-green-600 mr-2" />
+                <span className="text-sm font-medium">Predicted Count</span>
+              </div>
+              <div className="text-2xl font-bold mt-1 text-green-600">
+                {buildingData?.predictedCount || 0}
+              </div>
+              <div className="text-xs text-gray-500 mt-1 capitalize">
+                {buildingData?.predictionConfidence || 'low'} confidence
+              </div>
+            </div>
+            
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center">
+                <Users className="w-5 h-5 text-purple-600 mr-2" />
                 <span className="text-sm font-medium">Capacity</span>
               </div>
               <div className="text-2xl font-bold mt-1">{buildingData?.capacity || 0}</div>
@@ -272,69 +390,115 @@ const BuildingChartsModal = ({ buildingId, buildingName, onClose }: BuildingChar
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Prediction Comparison */}
+            <PredictionComparison 
+              current={buildingData?.currentCount || 0}
+              predicted={buildingData?.predictedCount || 0}
+              capacity={buildingData?.capacity || 0}
+              confidence={buildingData?.predictionConfidence || 'low'}
+            />
+
             {/* Occupancy Gauge */}
             <OccupancyGauge 
               current={buildingData?.currentCount || 0}
               capacity={buildingData?.capacity || 0}
             />
+          </div>
 
-            {/* Historical Trend */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-lg font-semibold mb-3 flex items-center">
-                <TrendingUp className="w-5 h-5 mr-2" />
-                Occupancy Trend ({timeRange}h)
-              </h3>
-              {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="timestamp" 
-                      fontSize={12}
-                      angle={-45}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis />
-                    <Tooltip content={<HistoryTooltip />} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="current_count" 
-                      stroke={getStatusColor()}
-                      strokeWidth={2}
-                      dot={{ fill: getStatusColor(), strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex items-center justify-center h-48 text-gray-500">
-                  No historical data available for the selected time range
-                </div>
-              )}
-            </div>
+          {/* Historical Trend - Full Width */}
+          <div className="mt-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="text-lg font-semibold mb-3 flex items-center">
+              <TrendingUp className="w-5 h-5 mr-2" />
+              Occupancy Trend ({timeRange}h)
+            </h3>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="timestamp" 
+                    fontSize={12}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis />
+                  <Tooltip content={<HistoryTooltip />} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="current_count" 
+                    stroke={getStatusColor()}
+                    strokeWidth={2}
+                    dot={{ fill: getStatusColor(), strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6 }}
+                    name="Actual Count"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-48 text-gray-500">
+                No historical data available for the selected time range
+              </div>
+            )}
           </div>
 
           {/* Additional Analysis */}
           {chartData.length > 0 && (
-            <div className="mt-6 bg-blue-50 p-4 rounded-lg">
-              <h3 className="font-semibold text-blue-900 mb-2">Analysis Summary</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <span className="font-medium text-blue-800">Peak Count:</span>
-                  <span className="ml-2">{Math.max(...chartData.map(d => d.current_count))}</span>
-                </div>
-                <div>
-                  <span className="font-medium text-blue-800">Average Count:</span>
-                  <span className="ml-2">
-                    {Math.round(chartData.reduce((sum, d) => sum + d.current_count, 0) / chartData.length)}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-medium text-blue-800">Data Points:</span>
-                  <span className="ml-2">{chartData.length}</span>
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Historical Statistics */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-blue-900 mb-2">Historical Analysis</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-blue-800">Peak Count:</span>
+                    <span className="ml-2">{Math.max(...chartData.map(d => d.current_count))}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-blue-800">Average Count:</span>
+                    <span className="ml-2">
+                      {Math.round(chartData.reduce((sum, d) => sum + d.current_count, 0) / chartData.length)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-blue-800">Data Points:</span>
+                    <span className="ml-2">{chartData.length}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-blue-800">Time Range:</span>
+                    <span className="ml-2">{timeRange}h</span>
+                  </div>
                 </div>
               </div>
+
+              {/* Prediction Metrics */}
+              {buildingData?.prediction?.metrics && (
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-green-900 mb-2">Prediction Model</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-green-800">Method:</span>
+                      <span className="ml-2 capitalize">{buildingData.predictionMethod.replace('_', ' ')}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-800">Accuracy:</span>
+                      <span className="ml-2">{(100 - buildingData.prediction.metrics.mape).toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-800">MAE:</span>
+                      <span className="ml-2">{buildingData.prediction.metrics.mae}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-800">Confidence:</span>
+                      <span className="ml-2 capitalize">{buildingData.predictionConfidence}</span>
+                    </div>
+                  </div>
+                  {buildingData.prediction.parameters && (
+                    <div className="mt-2 text-xs text-green-700">
+                      Parameters: α={buildingData.prediction.parameters.alpha}, β={buildingData.prediction.parameters.beta}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
