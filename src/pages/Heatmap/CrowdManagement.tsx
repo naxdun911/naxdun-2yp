@@ -561,12 +561,9 @@ const CrowdManagement: React.FC = () => {
         </div>
 
         {/* Main Content Layout */}
-        <div className="flex gap-8">
-          {/* Main Content */}
-          <div className={`flex-1 transition-all duration-300 ${selectedBuilding !== "all" ? 'mr-96' : ''}`}>
-            <div className="flex flex-col gap-8">
-              {/* Overall Crowd Trend */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="flex flex-col gap-8">
+          {/* Overall Crowd Trend */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                 {/* Chart Header */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-8 py-6 border-b border-gray-100">
                   <div className="flex items-center justify-between">
@@ -683,82 +680,93 @@ const CrowdManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Sidebar for Selected Building */}
+          {/* Selected Building Charts - Below Overall Trend */}
           {selectedBuilding !== "all" && (
-            <div className="fixed right-8 top-32 bottom-8 w-80 bg-white rounded-xl shadow-lg border border-gray-200 overflow-y-auto z-30">
-              <div className="sticky top-0 bg-white border-b border-gray-200 p-4 z-40">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-8 py-6 border-b border-gray-100">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    {crowdData.find(d => d.buildingId === selectedBuilding)?.buildingName}
-                  </h3>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-1">
+                      {crowdData.find(d => d.buildingId === selectedBuilding)?.buildingName}
+                    </h2>
+                    <p className="text-sm text-gray-600">Detailed analysis for selected building</p>
+                  </div>
                   <button
                     onClick={() => setSelectedBuilding("all")}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors flex items-center gap-2"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
+                    Close
                   </button>
                 </div>
               </div>
               
-              <div className="p-4 space-y-6">
-                {/* Gauge Chart for Selected Building */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  {crowdData
-                    .filter(d => d.buildingId === selectedBuilding)
-                    .map(building => (
-                      <GaugeChart
-                        key={building.buildingId}
-                        value={building.currentCount}
-                        max={getBuildingCapacity(building.buildingId)}
-                        title={`Occupancy`}
-                      />
-                    ))}
-                </div>
-                
-                {/* Bar Chart */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-800 mb-3">Current vs Predicted</h4>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={filteredData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="timestamp" hide />
-                      <YAxis />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="currentCount" fill="#8884d8" />
-                      <Bar dataKey="predictedCount" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                {/* Building History Chart */}
-                {buildingHistory.length > 0 && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-gray-800 mb-3">
-                      Past 2 Minutes Variation
-                    </h4>
+              {/* Charts Container */}
+              <div className="p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Gauge Chart */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Current Occupancy</h4>
+                    {crowdData
+                      .filter(d => d.buildingId === selectedBuilding)
+                      .map(building => (
+                        <GaugeChart
+                          key={building.buildingId}
+                          value={building.currentCount}
+                          max={getBuildingCapacity(building.buildingId)}
+                          title={`Occupancy`}
+                        />
+                      ))}
+                  </div>
+                  
+                  {/* Bar Chart */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Current vs Predicted</h4>
                     <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={buildingHistory}>
+                      <BarChart data={filteredData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="timestamp" hide />
                         <YAxis />
                         <Tooltip />
-                        <Line 
-                          type="monotone" 
-                          dataKey="current_count" 
-                          name="Current Count"
-                          stroke="#8884d8" 
-                          activeDot={{ r: 4 }}
-                        />
-                      </LineChart>
+                        <Legend />
+                        <Bar dataKey="currentCount" fill="#8884d8" />
+                        <Bar dataKey="predictedCount" fill="#82ca9d" />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
-                )}
+                  
+                  {/* Building History Chart */}
+                  <div className="bg-gray-50 rounded-lg p-6">
+                    <h4 className="text-lg font-semibold text-gray-800 mb-4">
+                      Past 2 Minutes Variation
+                    </h4>
+                    {buildingHistory.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <LineChart data={buildingHistory}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="timestamp" hide />
+                          <YAxis />
+                          <Tooltip />
+                          <Line 
+                            type="monotone" 
+                            dataKey="current_count" 
+                            name="Current Count"
+                            stroke="#8884d8" 
+                            activeDot={{ r: 4 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex items-center justify-center h-[200px] text-gray-500">
+                        Loading history data...
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
