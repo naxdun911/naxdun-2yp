@@ -84,11 +84,57 @@ router.get("/map-data", async (req, res) => {
     }
 
     if (useCache) {
-      // Return cached data from DB
+      // Return cached data from DB with predictions
+      const cachedDataWithPredictions = [];
+      
+      for (const row of dbResult.rows) {
+        let predictedCount = row.current_crowd; // Default to current count
+        let predictionConfidence = 'low';
+        
+        try {
+          // Get recent historical data for prediction
+          const historyResult = await pool.query(
+            `SELECT current_crowd, timestamp 
+             FROM building_history 
+             WHERE building_id = $1 
+               AND timestamp >= NOW() - INTERVAL '24 hours'
+             ORDER BY timestamp ASC
+             LIMIT 50`,
+            [row.building_id]
+          );
+          
+          if (historyResult.rows.length >= 3) {
+            const historicalData = historyResult.rows.map(histRow => ({
+              timestamp: histRow.timestamp,
+              current_count: histRow.current_crowd
+            }));
+            
+            const prediction = predictBuildingOccupancy(historicalData, {
+              forecastSteps: 1,
+              autoTune: true,
+              minDataPoints: 3
+            });
+            
+            if (prediction && prediction.method !== 'fallback') {
+              predictedCount = prediction.prediction;
+              predictionConfidence = prediction.confidence;
+            }
+          }
+        } catch (predictionError) {
+          console.error(`Prediction error for building ${row.building_id}:`, predictionError.message);
+        }
+        
+        cachedDataWithPredictions.push({
+          ...row,
+          predicted_count: predictedCount,
+          prediction_confidence: predictionConfidence
+        });
+      }
+      
       return res.json({
         success: true,
         source: "Database Cache",
-        data: dbResult.rows
+        data: cachedDataWithPredictions
       });
     }
 

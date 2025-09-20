@@ -41,6 +41,7 @@ interface TooltipProps {
 
 interface OccupancyGaugeProps {
   current: number;
+  predicted?: number;
   capacity: number;
   className?: string;
 }
@@ -159,9 +160,11 @@ const PredictionComparison = ({ current, predicted, capacity, confidence, classN
     </div>
   );
 };
-const OccupancyGauge = ({ current, capacity, className = "" }: OccupancyGaugeProps) => {
-  const percentage = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
-  const getColor = () => {
+const OccupancyGauge = ({ current, predicted, capacity, className = "" }: OccupancyGaugeProps) => {
+  const currentPercentage = capacity > 0 ? Math.round((current / capacity) * 100) : 0;
+  const predictedPercentage = predicted && capacity > 0 ? Math.round((predicted / capacity) * 100) : 0;
+  
+  const getColor = (percentage: number) => {
     if (percentage < 25) return '#22c55e'; // green
     if (percentage < 50) return '#eab308'; // yellow
     if (percentage < 75) return '#f97316'; // orange
@@ -169,22 +172,33 @@ const OccupancyGauge = ({ current, capacity, className = "" }: OccupancyGaugePro
   };
 
   const data = [
-    { name: 'Occupied', value: current, fill: getColor() },
+    { name: 'Current Occupied', value: current, fill: getColor(currentPercentage) },
     { name: 'Available', value: Math.max(0, capacity - current), fill: '#e5e7eb' }
   ];
+
+  // Add predicted data if available
+  if (predicted !== undefined && predicted !== current) {
+    data.push({
+      name: 'Predicted Occupied', 
+      value: predicted, 
+      fill: getColor(predictedPercentage)
+    });
+  }
 
   return (
     <div className={`bg-white p-4 rounded-xl shadow-sm border border-gray-200 ${className}`}>
       <h3 className="text-lg font-semibold mb-3 flex items-center">
         <Users className="w-5 h-5 mr-2" />
-        Current Occupancy
+        Occupancy Overview
       </h3>
-      <div className="flex items-center justify-between">
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Pie Chart */}
         <div className="flex-1">
           <ResponsiveContainer width="100%" height={150}>
             <PieChart>
               <Pie
-                data={data}
+                data={data.slice(0, 2)} // Only show current and available for pie chart
                 cx="50%"
                 cy="50%"
                 innerRadius={40}
@@ -193,7 +207,7 @@ const OccupancyGauge = ({ current, capacity, className = "" }: OccupancyGaugePro
                 endAngle={450}
                 dataKey="value"
               >
-                {data.map((entry, index) => (
+                {data.slice(0, 2).map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.fill} />
                 ))}
               </Pie>
@@ -201,16 +215,42 @@ const OccupancyGauge = ({ current, capacity, className = "" }: OccupancyGaugePro
             </PieChart>
           </ResponsiveContainer>
         </div>
-        <div className="ml-4 text-center">
-          <div className="text-3xl font-bold" style={{ color: getColor() }}>
-            {percentage}%
+        
+        {/* Stats */}
+        <div className="space-y-3">
+          {/* Current Stats */}
+          <div className="text-center p-3 bg-gray-50 rounded-lg">
+            <div className="text-2xl font-bold" style={{ color: getColor(currentPercentage) }}>
+              {currentPercentage}%
+            </div>
+            <div className="text-sm text-gray-600">
+              Current: {current} / {capacity}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {currentPercentage < 25 ? 'Low' : currentPercentage < 50 ? 'Moderate' : currentPercentage < 75 ? 'Busy' : 'High'} Density
+            </div>
           </div>
-          <div className="text-sm text-gray-600">
-            {current} / {capacity}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            {percentage < 25 ? 'Low' : percentage < 50 ? 'Moderate' : percentage < 75 ? 'Busy' : 'High'} Density
-          </div>
+          
+          {/* Predicted Stats */}
+          {predicted !== undefined && (
+            <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <div className="text-xl font-bold" style={{ color: getColor(predictedPercentage) }}>
+                {predictedPercentage}%
+              </div>
+              <div className="text-sm text-blue-600">
+                Predicted: {predicted} / {capacity}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                {predicted > current ? (
+                  <span className="text-red-600">↗ +{predicted - current} people</span>
+                ) : predicted < current ? (
+                  <span className="text-green-600">↘ -{current - predicted} people</span>
+                ) : (
+                  <span className="text-gray-600">→ No change expected</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

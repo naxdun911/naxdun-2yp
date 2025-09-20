@@ -173,9 +173,21 @@ const CrowdManagement: React.FC = () => {
         <div className="bg-white rounded-xl shadow-sm mb-8">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-800">Building Occupancy Overview</h2>
-            <p className="text-sm text-gray-600 mt-1">Current crowd count across all buildings</p>
+            <p className="text-sm text-gray-600 mt-1">Current crowd count and predictions across all buildings</p>
           </div>
           <div className="p-6">
+            {/* Legend */}
+            <div className="flex items-center gap-6 mb-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span className="text-sm text-gray-600">Current Count</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-sm text-gray-600">Predicted Count (Next Hour)</span>
+              </div>
+            </div>
+            
             {/* Scrollable chart container */}
             <div className="overflow-x-auto">
               <div style={{ width: Math.max(800, crowdData.length * 120), height: 400 }}>
@@ -200,11 +212,15 @@ const CrowdManagement: React.FC = () => {
                       tick={{ fill: '#6b7280' }}
                     />
                     <YAxis 
-                      label={{ value: 'Current Count', angle: -90, position: 'insideLeft' }}
+                      label={{ value: 'People Count', angle: -90, position: 'insideLeft' }}
                       tick={{ fill: '#6b7280' }}
                     />
                     <Tooltip 
-                      formatter={(value) => [value, 'Current Count']}
+                      formatter={(value, name) => {
+                        if (name === 'currentCount') return [value, 'Current Count'];
+                        if (name === 'predictedCount') return [value, 'Predicted Count (Next Hour)'];
+                        return [value, name];
+                      }}
                       labelFormatter={(label) => `Building: ${label}`}
                       contentStyle={{
                         backgroundColor: '#fff',
@@ -213,6 +229,7 @@ const CrowdManagement: React.FC = () => {
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                       }}
                     />
+                    {/* Current Count Line */}
                     <Line 
                       type="monotone" 
                       dataKey="currentCount" 
@@ -220,6 +237,18 @@ const CrowdManagement: React.FC = () => {
                       strokeWidth={3}
                       dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
                       activeDot={{ r: 8, stroke: '#3b82f6', strokeWidth: 2, fill: '#3b82f6' }}
+                      name="currentCount"
+                    />
+                    {/* Predicted Count Line */}
+                    <Line 
+                      type="monotone" 
+                      dataKey="predictedCount" 
+                      stroke="#10b981" 
+                      strokeWidth={3}
+                      strokeDasharray="5 5"
+                      dot={{ fill: '#10b981', strokeWidth: 2, r: 6 }}
+                      activeDot={{ r: 8, stroke: '#10b981', strokeWidth: 2, fill: '#10b981' }}
+                      name="predictedCount"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -231,6 +260,71 @@ const CrowdManagement: React.FC = () => {
                 ← Scroll horizontally to view all buildings →
               </div>
             )}
+            
+            {/* Summary Statistics */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-800">Total Current Count</p>
+                    <p className="text-2xl font-bold text-blue-900">
+                      {crowdData.reduce((sum, building) => sum + building.currentCount, 0)}
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">📊</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Total Predicted Count</p>
+                    <p className="text-2xl font-bold text-green-900">
+                      {crowdData.reduce((sum, building) => sum + building.predictedCount, 0)}
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">🔮</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className={`p-4 rounded-lg ${
+                crowdData.reduce((sum, building) => sum + building.predictedCount, 0) > 
+                crowdData.reduce((sum, building) => sum + building.currentCount, 0) 
+                  ? 'bg-red-50' : 'bg-yellow-50'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Expected Change</p>
+                    <p className={`text-2xl font-bold ${
+                      crowdData.reduce((sum, building) => sum + building.predictedCount, 0) > 
+                      crowdData.reduce((sum, building) => sum + building.currentCount, 0) 
+                        ? 'text-red-900' : 'text-yellow-900'
+                    }`}>
+                      {(() => {
+                        const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
+                        const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
+                        const change = predicted - current;
+                        return change > 0 ? `+${change}` : change.toString();
+                      })()}
+                    </p>
+                  </div>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    crowdData.reduce((sum, building) => sum + building.predictedCount, 0) > 
+                    crowdData.reduce((sum, building) => sum + building.currentCount, 0) 
+                      ? 'bg-red-500' : 'bg-yellow-500'
+                  }`}>
+                    <span className="text-white text-sm font-bold">
+                      {crowdData.reduce((sum, building) => sum + building.predictedCount, 0) > 
+                       crowdData.reduce((sum, building) => sum + building.currentCount, 0) ? '↗️' : '↘️'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
