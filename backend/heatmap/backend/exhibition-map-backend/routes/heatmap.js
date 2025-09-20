@@ -16,7 +16,7 @@ const API_BASE_URL = "https://ulckzxbsufwjlsyxxzoz.supabase.co/rest/v1";
 // Define headers
 const headers = {
   apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsY2t6eGJzdWZ3amxzeXh4em96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMTAwODcsImV4cCI6MjA3MzU4NjA4N30.J8MMNsdLQh6dw7QC1pFtWIZsYV5e2S2iRfWD_vWMsPM",
-  Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsY2t6eGJzdWZ3amxzeXh4em96Iiwicm9zZSI6ImFub24iLCJpYXQiOjE3NTgwMTAwODcsImV4cCI6MjA3MzU4NjA4N30.J8MMNsdLQh6dw7QC1pFtWIZsYV5e2S2iRfWD_vWMsPM"
+  Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsY2t6eGJzdWZ3amxzeXh4em96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMTAwODcsImV4cCI6MjA3MzU4NjA4N30.J8MMNsdLQh6dw7QC1pFtWIZsYV5e2S2iRfWD_vWMsPM"
 };
 
 
@@ -190,70 +190,6 @@ router.get("/map-data", async (req, res) => {
   }
 });
 
-// Route to get historical data for a specific building
-router.get("/building/:buildingId/history", async (req, res) => {
-  try {
-    const { buildingId } = req.params;
-    const { hours = 24 } = req.query; // Default to last 24 hours
-
-    // Get historical data for the building
-    const historyResult = await pool.query(
-      `SELECT 
-         bh.current_crowd,
-         bh.timestamp,
-         b.building_name,
-         b.building_capacity
-       FROM building_history bh
-       JOIN buildings b ON bh.building_id = b.building_id
-       WHERE bh.building_id = $1 
-         AND bh.timestamp >= NOW() - INTERVAL '${parseInt(hours)} hours'
-       ORDER BY bh.timestamp DESC
-       LIMIT 100`,
-      [buildingId]
-    );
-
-    // Get current status
-    const currentResult = await pool.query(
-      `SELECT 
-         cs.current_crowd,
-         cs.color,
-         cs.status_timestamp,
-         b.building_name,
-         b.building_capacity
-       FROM current_status cs
-       JOIN buildings b ON cs.building_id = b.building_id
-       WHERE cs.building_id = $1`,
-      [buildingId]
-    );
-
-    const buildingData = {
-      buildingId,
-      buildingName: currentResult.rows[0]?.building_name || '',
-      capacity: currentResult.rows[0]?.building_capacity || 0,
-      currentCount: currentResult.rows[0]?.current_crowd || 0,
-      currentColor: currentResult.rows[0]?.color || '',
-      lastUpdated: currentResult.rows[0]?.status_timestamp || '',
-      history: historyResult.rows.map(row => ({
-        timestamp: row.timestamp,
-        current_count: row.current_crowd,
-        occupancy_rate: row.building_capacity > 0 ? (row.current_crowd / row.building_capacity * 100).toFixed(1) : 0
-      }))
-    };
-
-    res.json({
-      success: true,
-      data: buildingData
-    });
-
-  } catch (error) {
-    console.error("Error fetching building history:", error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
 // Route to get historical data and predictions for a specific building
 router.get("/building/:buildingId/history", async (req, res) => {
   try {
@@ -346,18 +282,4 @@ router.get("/building/:buildingId/history", async (req, res) => {
 });
 
 module.exports = router;
-
-const HistoryTooltip = ({ active, payload }: TooltipProps) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-white p-3 rounded shadow-lg border border-gray-200">
-        <div className="font-medium">{new Date(data.rawTimestamp).toLocaleString()}</div>
-        <div className="text-blue-600">Count: {data.current_count}</div>
-        <div className="text-gray-600">Occupancy: {data.occupancy_rate}%</div>
-      </div>
-    );
-  }
-  return null;
-};
 
