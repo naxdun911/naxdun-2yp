@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Users, TrendingUp, Activity, Clock, RefreshCw, AlertCircle, ChevronRight } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart } from 'recharts';
+import { Users, TrendingUp, Activity, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import SvgHeatmap from "./SvgHeatmap.jsx";
 import { LoadingView, ErrorView } from "./utils/uiHelpers";
 
