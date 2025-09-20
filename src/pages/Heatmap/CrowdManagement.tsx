@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { RefreshCw, AlertTriangle, Bell, BellOff } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import SvgHeatmap from "./SvgHeatmap.jsx";
 import {
   LineChart,
@@ -22,88 +22,15 @@ interface CrowdData {
   capacity: number;  // Made required since we have it in database
 }
 
-interface CapacityAlert {
-  id: string;
-  buildingId: string;  // Changed from number to string
-  buildingName: string;
-  currentCount: number;
-  capacity: number;
-  alertLevel: 'warning' | 'critical' | 'full';
-  percentage: number;
-  timestamp: string;
-}
-
-interface AlertSettings {
-  enabled: boolean;
-  warningThreshold: number; // 80%
-  criticalThreshold: number; // 90%
-  fullThreshold: number; // 100%
-  showNotifications: boolean;
-}
-
 const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   // Removed viewMode and searchTerm state
   
-  // Capacity Alert States
-  const [alerts, setAlerts] = useState<CapacityAlert[]>([]);
-  const [alertSettings, setAlertSettings] = useState<AlertSettings>({
-    enabled: true,
-    warningThreshold: 80,
-    criticalThreshold: 90,
-    fullThreshold: 100,
-    showNotifications: true
-  });
-  
   // Removed interval and poll options (Horizon, Auto-refresh)
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Request notification permission on component mount
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  // Check for capacity alerts - memoized to prevent unnecessary re-renders
-  const checkCapacityAlerts = useCallback((data: CrowdData[]): CapacityAlert[] => {
-    if (!alertSettings.enabled) return [];
-    
-    const newAlerts: CapacityAlert[] = [];
-    
-    data.forEach(building => {
-      const capacity = building.capacity; // Use capacity directly from building data
-      const percentage = Math.round((building.currentCount / capacity) * 100);
-      
-      let alertLevel: 'warning' | 'critical' | 'full' | null = null;
-      
-      if (percentage >= alertSettings.fullThreshold) {
-        alertLevel = 'full';
-      } else if (percentage >= alertSettings.criticalThreshold) {
-        alertLevel = 'critical';
-      } else if (percentage >= alertSettings.warningThreshold) {
-        alertLevel = 'warning';
-      }
-      
-      if (alertLevel) {
-        newAlerts.push({
-          id: `${building.buildingId}-${Date.now()}`,
-          buildingId: building.buildingId,
-          buildingName: building.buildingName,
-          currentCount: building.currentCount,
-          capacity,
-          alertLevel,
-          percentage,
-          timestamp: new Date().toLocaleTimeString()
-        });
-      }
-    });
-    
-    return newAlerts;
-  }, [alertSettings.enabled, alertSettings.warningThreshold, alertSettings.criticalThreshold, alertSettings.fullThreshold]);
 
   const fetchData = useCallback(async (): Promise<void> => {
     try {
@@ -140,26 +67,6 @@ const CrowdManagement: React.FC = () => {
       
       setCrowdData(apiData);
       
-      // Check for capacity alerts
-      const newAlerts = checkCapacityAlerts(apiData);
-      setAlerts(newAlerts);
-      
-      // Show notifications for new alerts
-      if (alertSettings.showNotifications && "Notification" in window && Notification.permission === "granted") {
-        newAlerts.forEach(alert => {
-          const alertMessages = {
-            warning: `⚠️ ${alert.buildingName} is at ${alert.percentage}% capacity`,
-            critical: `🚨 ${alert.buildingName} is at ${alert.percentage}% capacity - Near Full!`,
-            full: `🔴 ${alert.buildingName} is at FULL capacity (${alert.percentage}%)`
-          };
-          
-          new Notification("Capacity Alert", {
-            body: alertMessages[alert.alertLevel],
-            icon: "/logo.png"
-          });
-        });
-      }
-      
     } catch (err: any) {
       console.error('Error fetching crowd data:', err);
       setError(err.message || 'Failed to fetch crowd data');
@@ -169,7 +76,7 @@ const CrowdManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [checkCapacityAlerts, alertSettings.showNotifications]);
+  }, []);
 
   // Fetch crowd data initially (removed auto-refresh logic)
   useEffect(() => {
@@ -254,69 +161,6 @@ const CrowdManagement: React.FC = () => {
         <div className="text-sm text-gray-500 mb-6 bg-white px-4 py-3 rounded-lg border-l-4 border-emerald-500">
           <strong>Live Data Time:</strong> {crowdData[0]?.timestamp || "--:--"}
         </div>
-
-        {/* Controls Section - Only Alerts remain */}
-        <div className="bg-white p-6 rounded-xl shadow-sm mb-8 relative z-20">
-          <div className="flex items-center gap-6">
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <label className="text-sm font-medium text-gray-700">Alerts:</label>
-              <button
-                onClick={() => setAlertSettings(prev => ({ ...prev, enabled: !prev.enabled }))}
-                className={`flex items-center gap-2 px-3 py-3 border rounded-lg font-medium text-sm transition-all duration-150 min-w-[120px] focus:outline-none ${
-                  alertSettings.enabled 
-                    ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700' 
-                    : 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200'
-                }`}
-              >
-                {alertSettings.enabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                {alertSettings.enabled ? 'Enabled' : 'Disabled'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Capacity Alerts Display */}
-        {alerts.length > 0 && (
-          <div className="bg-white p-6 rounded-xl shadow-sm mb-8 border-l-4 border-orange-500">
-            <div className="flex items-center gap-2 mb-4">
-              <AlertTriangle className="w-5 h-5 text-orange-600" />
-              <h3 className="text-lg font-semibold text-gray-800">Capacity Alerts</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {alerts.map(alert => (
-                <div
-                  key={alert.id}
-                  className={`p-4 rounded-lg border-l-4 ${
-                    alert.alertLevel === 'full' 
-                      ? 'bg-red-50 border-red-500' 
-                      : alert.alertLevel === 'critical'
-                      ? 'bg-orange-50 border-orange-500'
-                      : 'bg-yellow-50 border-yellow-500'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-800">{alert.buildingName}</h4>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      alert.alertLevel === 'full' 
-                        ? 'bg-red-100 text-red-800' 
-                        : alert.alertLevel === 'critical'
-                        ? 'bg-orange-100 text-orange-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {alert.percentage}%
-                    </span>
-                  </div>
-                  <p className="text-sm text-gray-600">
-                    {alert.currentCount} / {alert.capacity} capacity
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {alert.timestamp}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Heat Map Section */}
         <div className="mb-8">
