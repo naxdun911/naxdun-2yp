@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { RefreshCw } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import SvgHeatmap from "./SvgHeatmap.jsx";
 import { LoadingView, ErrorView } from "./utils/uiHelpers";
 
@@ -17,11 +17,51 @@ const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  // Removed viewMode and searchTerm state
   
-  // Removed interval and poll options (Horizon, Auto-refresh)
-
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
+
+  // Map building IDs to real building names (from SvgHeatmap.jsx)
+  const getBuildingName = (buildingId: string, fallbackName?: string): string => {
+    const buildingNames: { [key: string]: string } = {
+      'B1': 'Engineering Carpentry Shop',
+      'B2': 'Engineering Workshop',
+      'B3': 'Building B3',
+      'B4': 'Generator Room',
+      'B5': 'Building B5',
+      'B6': 'Structure Lab',
+      'B7': 'Administrative Building',
+      'B8': 'Canteen',
+      'B9': 'Lecture Room 10/11',
+      'B10': 'Engineering Library',
+      'B11': 'Chemical and Process Engineering',
+      'B12': 'Security Unit',
+      'B13': 'Drawing Office 2',
+      'B14': 'Faculty Canteen',
+      'B15': 'Manufacturing and Industrial Engineering',
+      'B16': 'Professor E.O.E. Perera Theater',
+      'B17': 'Electronic Lab',
+      'B18': 'Washrooms',
+      'B19': 'Electrical and Electronic Workshop',
+      'B20': 'Computer Engineering',
+      'B21': 'Building B21',
+      'B22': 'Environmental Lab',
+      'B23': 'Applied Mechanics Lab',
+      'B24': 'New Mechanics Lab',
+      'B25': 'Building B25',
+      'B26': 'Building B26',
+      'B27': 'Building B27',
+      'B28': 'Materials Lab',
+      'B29': 'Thermodynamics Lab',
+      'B30': 'Fluids Lab',
+      'B31': 'Surveying and Soil Lab',
+      'B32': 'Engineering Mathematics',
+      'B33': 'Drawing Office 1',
+      'B34': 'Electrical and Electronic Engineering'
+    };
+    
+    return buildingNames[buildingId] || fallbackName || `Building ${buildingId}`;
+  };
 
   const fetchData = useCallback(async (): Promise<void> => {
     try {
@@ -47,7 +87,7 @@ const CrowdManagement: React.FC = () => {
         
         return {
           buildingId: building.building_id,
-          buildingName: building.building_name || `Building ${building.building_id}`,
+          buildingName: getBuildingName(building.building_id, building.building_name),
           currentCount: building.current_crowd || 0,
           predictedCount: building.predicted_count || building.current_crowd || 0,
           timestamp: building.status_timestamp || new Date().toLocaleTimeString(),
@@ -69,20 +109,24 @@ const CrowdManagement: React.FC = () => {
     }
   }, []);
 
-  // Fetch crowd data initially (removed auto-refresh logic)
+  // Fetch crowd data initially and set up auto-refresh
   useEffect(() => {
     if (crowdData.length === 0) {
       setLoading(true);
     }
     fetchData();
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [fetchData]);
 
-  const handleManualRefresh = useCallback(async () => {
-    setLoading(true);
-    await fetchData();
+    // Set up auto-refresh
+    intervalRef.current = setInterval(() => {
+      fetchData();
+    }, AUTO_REFRESH_INTERVAL);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, [fetchData]);
 
   // Removed search handler
@@ -101,7 +145,7 @@ const CrowdManagement: React.FC = () => {
     return (
       <div className="pt-24 pb-8 min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto px-6">
-          <ErrorView error={error} onRetry={handleManualRefresh} />
+          <ErrorView error={error} onRetry={fetchData} />
         </div>
       </div>
     );
@@ -113,13 +157,6 @@ const CrowdManagement: React.FC = () => {
         {/* Page Header */}
         <div className="flex items-center justify-between mb-8 bg-white p-6 rounded-xl shadow-sm">
           <h1 className="text-3xl font-bold text-gray-800 m-0">Crowd Management</h1>
-          <button
-            onClick={handleManualRefresh}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white border-0 rounded-lg font-medium cursor-pointer transition-all duration-200 shadow-md hover:bg-blue-700 hover:-translate-y-0.5 hover:shadow-lg"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
         </div>
 
         {/* Live Timestamp */}
@@ -130,6 +167,71 @@ const CrowdManagement: React.FC = () => {
         {/* Heat Map Section */}
         <div className="mb-8">
           <SvgHeatmap />
+        </div>
+
+        {/* Building Occupancy Chart */}
+        <div className="bg-white rounded-xl shadow-sm mb-8">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-800">Building Occupancy Overview</h2>
+            <p className="text-sm text-gray-600 mt-1">Current crowd count across all buildings</p>
+          </div>
+          <div className="p-6">
+            {/* Scrollable chart container */}
+            <div className="overflow-x-auto">
+              <div style={{ width: Math.max(800, crowdData.length * 120), height: 400 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={crowdData}
+                    margin={{
+                      top: 20,
+                      right: 30,
+                      left: 20,
+                      bottom: 80,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="buildingName" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      interval={0}
+                      fontSize={11}
+                      tick={{ fill: '#6b7280' }}
+                    />
+                    <YAxis 
+                      label={{ value: 'Current Count', angle: -90, position: 'insideLeft' }}
+                      tick={{ fill: '#6b7280' }}
+                    />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Current Count']}
+                      labelFormatter={(label) => `Building: ${label}`}
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="currentCount" 
+                      stroke="#3b82f6" 
+                      strokeWidth={3}
+                      dot={{ fill: '#3b82f6', strokeWidth: 2, r: 6 }}
+                      activeDot={{ r: 8, stroke: '#3b82f6', strokeWidth: 2, fill: '#3b82f6' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            {/* Scroll indicator */}
+            {crowdData.length > 6 && (
+              <div className="text-xs text-gray-500 mt-2 text-center">
+                ← Scroll horizontally to view all buildings →
+              </div>
+            )}
+          </div>
         </div>
 
         {/* NOTE: Overall Crowd Trend chart has been completely removed */}
