@@ -58,7 +58,7 @@ const HistoryTooltip = ({ active, payload, label }: TooltipProps) => {
     const data = payload[0].payload;
     return (
       <div className="bg-white p-3 rounded shadow-lg border border-gray-200">
-        <div className="font-medium">{new Date(label || '').toLocaleString()}</div>
+        <div className="font-medium">{new Date(data.rawTimestamp).toLocaleString()}</div>
         <div className="text-blue-600">Count: {data.current_count}</div>
         <div className="text-gray-600">Occupancy: {data.occupancy_rate}%</div>
       </div>
@@ -265,13 +265,21 @@ const BuildingChartsModal = ({ buildingId, buildingName, onClose }: BuildingChar
     if (!buildingData?.history) return [];
     
     // Format data for charts and reverse to show chronological order
-    return buildingData.history.reverse().map((item: HistoryItem) => ({
-      ...item,
-      timestamp: new Date(item.timestamp).toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      })
-    }));
+    return buildingData.history.reverse().map((item: HistoryItem) => {
+  const dateObj = new Date(item.timestamp);
+  let formatted;
+  if (timeRange <= 24) {
+    formatted = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  } else {
+    formatted = dateObj.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  return {
+    ...item,
+    timestamp: formatted,      // for X-axis
+    rawTimestamp: item.timestamp // for tooltip
+  };
+});
+
   };
 
   if (loading) {
