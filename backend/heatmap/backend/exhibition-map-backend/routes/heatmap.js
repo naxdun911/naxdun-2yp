@@ -16,7 +16,7 @@ const API_BASE_URL = "https://ulckzxbsufwjlsyxxzoz.supabase.co/rest/v1";
 // Define headers
 const headers = {
   apikey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsY2t6eGJzdWZ3amxzeXh4em96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMTAwODcsImV4cCI6MjA3MzU4NjA4N30.J8MMNsdLQh6dw7QC1pFtWIZsYV5e2S2iRfWD_vWMsPM",
-  Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsY2t6eGJzdWZ3amxzeXh4em96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwMTAwODcsImV4cCI6MjA3MzU4NjA4N30.J8MMNsdLQh6dw7QC1pFtWIZsYV5e2S2iRfWD_vWMsPM"
+  Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsY2t6eGJzdWZ3amxzeXh4em96Iiwicm9zZSI6ImFub24iLCJpYXQiOjE3NTgwMTAwODcsImV4cCI6MjA3MzU4NjA4N30.J8MMNsdLQh6dw7QC1pFtWIZsYV5e2S2iRfWD_vWMsPM"
 };
 
 
@@ -346,4 +346,18 @@ router.get("/building/:buildingId/history", async (req, res) => {
 });
 
 module.exports = router;
+
+const HistoryTooltip = ({ active, payload }: TooltipProps) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white p-3 rounded shadow-lg border border-gray-200">
+        <div className="font-medium">{new Date(data.rawTimestamp).toLocaleString()}</div>
+        <div className="text-blue-600">Count: {data.current_count}</div>
+        <div className="text-gray-600">Occupancy: {data.occupancy_rate}%</div>
+      </div>
+    );
+  }
+  return null;
+};
 
