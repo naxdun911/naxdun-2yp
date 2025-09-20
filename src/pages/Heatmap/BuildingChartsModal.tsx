@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
-import { X, TrendingUp, Users, Clock, AlertTriangle, Brain, Target } from 'lucide-react';
+import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
+import { X, TrendingUp, Users, Clock, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 
 const HEATMAP_API_URL = import.meta.env.VITE_HEATMAP_API_URL || "http://localhost:3897";
@@ -37,7 +37,6 @@ interface HistoryItem {
 interface TooltipProps {
   active?: boolean;
   payload?: any[];
-  label?: string;
 }
 
 interface OccupancyGaugeProps {
@@ -53,7 +52,7 @@ interface BuildingChartsModalProps {
 }
 
 // Custom tooltip for line chart
-const HistoryTooltip = ({ active, payload, label }: TooltipProps) => {
+const HistoryTooltip = ({ active, payload }: TooltipProps) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
@@ -477,6 +476,36 @@ const BuildingChartsModal = ({ buildingId, buildingName, onClose }: BuildingChar
                   </div>
                 </div>
               </div>
+
+              {/* Prediction Metrics */}
+              {buildingData?.prediction?.metrics && (
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-green-900 mb-2">Prediction Model</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-green-800">Method:</span>
+                      <span className="ml-2 capitalize">{buildingData.predictionMethod.replace('_', ' ')}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-800">Accuracy:</span>
+                      <span className="ml-2">{(100 - buildingData.prediction.metrics.mape).toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-800">MAE:</span>
+                      <span className="ml-2">{buildingData.prediction.metrics.mae}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-green-800">Confidence:</span>
+                      <span className="ml-2 capitalize">{buildingData.predictionConfidence}</span>
+                    </div>
+                  </div>
+                  {buildingData.prediction.parameters && (
+                    <div className="mt-2 text-xs text-green-700">
+                      Parameters: α={buildingData.prediction.parameters.alpha}, β={buildingData.prediction.parameters.beta}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
