@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start:all": "concurrently \"npm run dev\" \"npm --prefix backend/heatmap/backend/exhibition-map-backend run dev\"",
+    "start:heatmap": "npm --prefix backend/heatmap/backend/exhibition-map-backend start"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -34,6 +36,7 @@
     "@types/recharts": "^1.8.29",
     "@vitejs/plugin-react": "^5.0.2",
     "@vitejs/plugin-react-swc": "^4.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^9.33.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",

@@ -1,4 +1,4 @@
--- Add historical data table to track building occupancy over time
+ -- Add historical data table to track building occupancy over time
 CREATE TABLE building_history (
     id SERIAL PRIMARY KEY,
     building_id VARCHAR(10) NOT NULL,

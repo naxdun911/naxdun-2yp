@@ -1,14 +1,15 @@
 // db.js - PostgreSQL Connection Pool Setup
 
+require('dotenv').config();
 const { Pool } = require('pg');
 
-// Create a new PostgreSQL pool using your local database credentials
+// Create a new PostgreSQL pool using environment variables
 const pool = new Pool({
-  user: 'postgres',           // PostgreSQL username (default: 'postgres')
-  host: 'localhost',          // Database server host (default: 'localhost')
-  database: 'heatmap_db',     // Database name (the one you created in pgAdmin)
-  password: '1234',  // Your chosen password
-  port: process.env.DATABASE_PORT || 5432,                 // PostgreSQL server port (default: 5432)
+  user: process.env.DATABASE_USER || 'postgres',
+  host: process.env.DATABASE_HOST || 'localhost',
+  database: process.env.DATABASE_NAME || 'heatmap_db',
+  password: process.env.DATABASE_PASSWORD || '1234',
+  port: process.env.DATABASE_PORT || 5432,
 });
 
 // Test the connection when the module is loaded
