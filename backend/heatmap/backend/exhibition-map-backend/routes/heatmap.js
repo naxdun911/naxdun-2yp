@@ -1,7 +1,7 @@
 const express = require("express");
 const axios = require("axios");
 const pool = require('../heatmap_db'); // pg Pool instance
-const { predictBuildingOccupancy } = require('../utils/holtPrediction');
+const { predictBuildingOccupancy } = require('../utils/emaPrediction');
 
 const router = express.Router();
 
@@ -84,22 +84,22 @@ router.get("/map-data", async (req, res) => {
     }
 
     if (useCache) {
-      // Return cached data from DB with predictions
+      // Return cached data from DB with EMA predictions
       const cachedDataWithPredictions = [];
       
       for (const row of dbResult.rows) {
         let predictedCount = row.current_crowd; // Default to current count
         let predictionConfidence = 'low';
+        let predictionMethod = 'fallback';
         
         try {
-          // Get recent historical data for prediction
+          // Get recent historical data for EMA prediction (1 hour ahead)
           const historyResult = await pool.query(
             `SELECT current_crowd, timestamp 
              FROM building_history 
              WHERE building_id = $1 
-               AND timestamp >= NOW() - INTERVAL '24 hours'
-             ORDER BY timestamp ASC
-             LIMIT 50`,
+               AND timestamp >= NOW() - INTERVAL '6 hours'
+             ORDER BY timestamp ASC`,
             [row.building_id]
           );
           
@@ -110,24 +110,26 @@ router.get("/map-data", async (req, res) => {
             }));
             
             const prediction = predictBuildingOccupancy(historicalData, {
-              forecastSteps: 1,
-              autoTune: true,
+              hoursAhead: 1,
+              periods: 12,
               minDataPoints: 3
             });
             
             if (prediction && prediction.method !== 'fallback') {
               predictedCount = prediction.prediction;
               predictionConfidence = prediction.confidence;
+              predictionMethod = prediction.method;
             }
           }
         } catch (predictionError) {
-          console.error(`Prediction error for building ${row.building_id}:`, predictionError.message);
+          console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
         }
         
         cachedDataWithPredictions.push({
           ...row,
           predicted_count: predictedCount,
-          prediction_confidence: predictionConfidence
+          prediction_confidence: predictionConfidence,
+          prediction_method: predictionMethod
         });
       }
       
@@ -188,20 +190,18 @@ router.get("/map-data", async (req, res) => {
       const color = getHeatmapColor(building.total_count, capacityMap[building.building_id] );
       const timestamp = new Date().toLocaleString();
 
-      // Get recent historical data for prediction
+      // Get recent historical data for EMA prediction (1 hour ahead)
       let predictedCount = building.total_count; // Default to current count
       let predictionConfidence = 'low';
+      let predictionMethod = 'fallback';
       
-      // Temporarily disable prediction logic for debugging
-      /*
       try {
         const historyResult = await pool.query(
           `SELECT current_crowd, timestamp 
            FROM building_history 
            WHERE building_id = $1 
-             AND timestamp >= NOW() - INTERVAL '24 hours'
-           ORDER BY timestamp ASC
-           LIMIT 50`,
+             AND timestamp >= NOW() - INTERVAL '6 hours'
+           ORDER BY timestamp ASC`,
           [building.building_id]
         );
         
@@ -212,20 +212,20 @@ router.get("/map-data", async (req, res) => {
           }));
           
           const prediction = predictBuildingOccupancy(historicalData, {
-            forecastSteps: 1,
-            autoTune: true,
+            hoursAhead: 1,
+            periods: 12,
             minDataPoints: 3
           });
           
           if (prediction && prediction.method !== 'fallback') {
             predictedCount = prediction.prediction;
             predictionConfidence = prediction.confidence;
+            predictionMethod = prediction.method;
           }
         }
       } catch (predictionError) {
-        console.error(`Prediction error for building ${building.building_id}:`, predictionError.message);
+        console.error(`EMA prediction error for building ${building.building_id}:`, predictionError.message);
       }
-      */
 
       coloredBuildings.push({ 
         ...pick(building, ["building_id","Build_Name", "total_count"]),
@@ -233,7 +233,8 @@ router.get("/map-data", async (req, res) => {
         color, 
         status_timestamp: timestamp,
         predicted_count: predictedCount,
-        prediction_confidence: predictionConfidence
+        prediction_confidence: predictionConfidence,
+        prediction_method: predictionMethod
       });
 
       //console.log(building.total_count,building.building_id);
@@ -317,17 +318,17 @@ router.get("/building/:buildingId/history", async (req, res) => {
         : 0
     }));
     
-    // Generate predictions using Holt's method
+    // Generate predictions using EMA method (1 hour ahead)
     let prediction = null;
     if (historicalData.length > 0) {
       try {
         prediction = predictBuildingOccupancy(historicalData, {
-          forecastSteps: 3, // Predict next 3 time periods
-          autoTune: true,
+          hoursAhead: 1,
+          periods: 12,
           minDataPoints: 3
         });
       } catch (error) {
-        console.error('Prediction error for building', buildingId, ':', error.message);
+        console.error('EMA prediction error for building', buildingId, ':', error.message);
       }
     }
     
