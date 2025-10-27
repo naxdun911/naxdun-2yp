@@ -3,14 +3,21 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 
-// Create a new PostgreSQL pool using environment variables
-const pool = new Pool({
-  user: process.env.DATABASE_USER || 'postgres',
-  host: process.env.DATABASE_HOST || 'localhost',
-  database: process.env.DATABASE_NAME || 'heatmap_db',
-  password: process.env.DATABASE_PASSWORD || '1234',
-  port: process.env.DATABASE_PORT || 5432,
-});
+// Build pool config from environment variables and coerce types
+const poolConfig = {
+  user: String(process.env.DATABASE_USER || 'postgres'),
+  host: String(process.env.DATABASE_HOST || 'localhost'),
+  database: String(process.env.DATABASE_NAME || 'heatmap_db'),
+  // Ensure password is a string (avoids `client password must be a string` errors)
+  password: String(process.env.DATABASE_PASSWORD || '1234'),
+  port: parseInt(String(process.env.DATABASE_PORT || '5432'), 10),
+};
+
+// Debug: log the type of the password value (do NOT log the password itself)
+console.log(`DB pool config - host=${poolConfig.host}, database=${poolConfig.database}, passwordType=${typeof poolConfig.password}`);
+
+// Create a new PostgreSQL pool using the config
+const pool = new Pool(poolConfig);
 
 // Test the connection when the module is loaded
 pool.connect()

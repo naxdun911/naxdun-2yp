@@ -22,6 +22,7 @@ app.use(express.json());
 // Register each feature router
 app.use('/heatmap', require('./routes/heatmap'));       // Heatmap data from CCTV
 app.use('/api', require('./routes/sample_buildings'));  // Demo building data
+app.use('/reports', require('./routes/reporting'));
 
 // Telegram notification routes
 app.get('/telegram/status', (req, res) => {

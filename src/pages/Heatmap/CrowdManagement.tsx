@@ -18,6 +18,8 @@ const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>('2025-10-26');
+  const [showDateInput, setShowDateInput] = useState<boolean>(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
@@ -130,6 +132,39 @@ const CrowdManagement: React.FC = () => {
     };
   }, [fetchData]);
 
+  // --- Report generation helpers ---
+  const HEATMAP_API_URL = import.meta.env.VITE_HEATMAP_API_URL || 'http://localhost:3897';
+
+  const downloadPdf = async (url: string, filename?: string) => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to download: ${res.status}`);
+      const blob = await res.blob();
+      const urlObj = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlObj;
+      a.download = filename || 'report.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(urlObj), 10000);
+    } catch (err: any) {
+      console.error('Download PDF error', err);
+      alert('Failed to download report: ' + (err.message || err));
+    }
+  };
+
+  const handleEnterDate = () => {
+    // show a date input area (toggles visibility)
+    setShowDateInput(s => !s);
+  };
+
+  const handleGenerateReport = async () => {
+    const dateToUse = selectedDate || '2025-10-26';
+    const url = `${HEATMAP_API_URL}/reports/daily?date=${encodeURIComponent(dateToUse)}`;
+    await downloadPdf(url, `report-${dateToUse}.pdf`);
+  };
+
   // Removed search handler
 
   if (loading) {
@@ -202,6 +237,46 @@ const CrowdManagement: React.FC = () => {
         {/* Heat Map Section */}
         <div className="mb-8">
           <SvgHeatmap />
+        </div>
+
+        {/* Report Generation Panel */}
+        <div className="mb-8 bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold mb-3">Report Generator</h3>
+          <p className="text-sm text-gray-600 mb-4">Generate historical daily reports (PDF). Enter a date or use the default.</p>
+          <div className="flex items-center gap-3">
+            <button
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              onClick={handleEnterDate}
+            >
+              Enter Date
+            </button>
+
+            <button
+              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={handleGenerateReport}
+            >
+              Generate Report
+            </button>
+
+            <button
+              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300"
+              onClick={() => downloadPdf('http://localhost:3897/reports/daily?date=2025-10-26', 'report-2025-10-26.pdf')}
+            >
+              Download Fixed (2025-10-26)
+            </button>
+          </div>
+
+          {showDateInput && (
+            <div className="mt-4">
+              <label className="block text-sm text-gray-700 mb-1">Select date</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-2 border rounded-lg"
+              />
+            </div>
+          )}
         </div>
 
         {/* Enhanced Building Occupancy Chart */}
