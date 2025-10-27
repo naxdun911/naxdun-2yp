@@ -14,13 +14,23 @@ interface CrowdData {
   capacity: number;  // Made required since we have it in database
 }
 
+interface ApiBuilding {
+  building_id: string;
+  building_name?: string | null;
+  current_crowd?: number | null;
+  predicted_count?: number | null;
+  status_timestamp?: string | null;
+  color?: string | null;
+  building_capacity?: number | null;
+}
+
 const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
+  const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
   // Map building IDs to real building names (from SvgHeatmap.jsx)
   const getBuildingName = (buildingId: string, fallbackName?: string): string => {
@@ -76,32 +86,33 @@ const CrowdManagement: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const result = await response.json();
+  const result: { success: boolean; data: ApiBuilding[]; error?: string } = await response.json();
       
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch building data');
       }
       
       // Transform API data to match our interface
-      const apiData: CrowdData[] = result.data.map((building: any, index: number) => {
+  const apiData: CrowdData[] = result.data.map((building: ApiBuilding, index: number) => {
         const colors = ['#ff6b6b', '#4ecdc4', '#ff9f43', '#6c5ce7', '#a29bfe', '#74b9ff', '#fd79a8', '#fdcb6e', '#6c5ce7', '#55a3ff'];
         
         return {
           buildingId: building.building_id,
-          buildingName: getBuildingName(building.building_id, building.building_name),
-          currentCount: building.current_crowd || 0,
-          predictedCount: building.predicted_count || building.current_crowd || 0,
-          timestamp: building.status_timestamp || new Date().toLocaleTimeString(),
-          color: building.color || colors[index % colors.length],
-          capacity: building.building_capacity || 100
+          buildingName: getBuildingName(building.building_id, building.building_name ?? undefined),
+          currentCount: building.current_crowd ?? 0,
+          predictedCount: (building.predicted_count ?? building.current_crowd) ?? 0,
+          timestamp: building.status_timestamp ?? new Date().toLocaleTimeString(),
+          color: building.color ?? colors[index % colors.length],
+          capacity: building.building_capacity ?? 100
         };
       });
       
       setCrowdData(apiData);
       
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch crowd data';
       console.error('Error fetching crowd data:', err);
-      setError(err.message || 'Failed to fetch crowd data');
+      setError(message);
       
       // Don't clear data on error, keep showing last successful data
       // setCrowdData([]);
@@ -128,7 +139,7 @@ const CrowdManagement: React.FC = () => {
         intervalRef.current = null;
       }
     };
-  }, [fetchData]);
+  }, [fetchData, crowdData.length]);
 
   // Removed search handler
 
@@ -174,7 +185,7 @@ const CrowdManagement: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-white font-medium">Live Monitoring</div>
-                  <div className="text-blue-100 text-sm">Auto-refresh: 30s</div>
+                  <div className="text-blue-100 text-sm">Auto-refresh: 10s</div>
                 </div>
               </div>
             </div>
@@ -292,7 +303,7 @@ const CrowdManagement: React.FC = () => {
                   </h3>
                   <p className="text-gray-600 leading-relaxed">
                     Stay informed about building occupancy levels with our Telegram bot. 
-                    Get notified every 30 seconds where the occupancy is less than 40% of capacity.
+                    Get notified every 10 seconds where the occupancy is less than 40% of capacity.
                     Also you can check the status of all buildings anytime by sending the <code className="bg-gray-100 px-1 rounded">/status</code> command.
                     Perfect for you to avoid crowded places.
                   </p>
@@ -335,7 +346,7 @@ const CrowdManagement: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-emerald-600">
                   <Clock className="w-4 h-4" />
-                  <span className="text-sm">Updates every 30 seconds</span>
+                  <span className="text-sm">Updates every 10 seconds</span>
                 </div>
               </div>
             </div>

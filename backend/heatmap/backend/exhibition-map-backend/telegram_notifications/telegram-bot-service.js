@@ -8,6 +8,7 @@ class TelegramBotService {
         this.bot = null;
         this.subscribers = new Set(); // Store chat IDs of subscribed users
         this.isInitialized = false;
+        this.hasLoggedPollingConflict = false; // prevent noisy duplicate polling errors
     }
 
     /**
@@ -42,7 +43,7 @@ class TelegramBotService {
             const welcomeMessage = `
 🏢 *Welcome to Heatmap Notifications!*
 
-You will now receive notifications about less crowded buildings every 30 seconds.
+You will now receive notifications about less crowded buildings every 10 seconds.
 
 Buildings with less than 40% occupancy will be reported to help you find the best spots!
 
@@ -68,7 +69,7 @@ Commands:
                 }
             } catch (error) {
                 console.error(`❌ Error sending immediate notification to ${chatId}:`, error.message);
-                await this.bot.sendMessage(chatId, '⚠️ Welcome! You\'ll receive your first notification within 30 seconds.\n\n🛑 _Tap_ /stop _to unsubscribe from notifications_', { parse_mode: 'Markdown' });
+                await this.bot.sendMessage(chatId, '⚠️ Welcome! You\'ll receive your first notification within 10 seconds.\n\n🛑 _Tap_ /stop _to unsubscribe from notifications_', { parse_mode: 'Markdown' });
             }
         });
 
@@ -114,7 +115,7 @@ This bot sends you notifications about less crowded buildings on campus.
 /help - Show this help message
 
 *About Notifications:*
-• Sent every 30 seconds
+• Sent every 10 seconds
 • Shows buildings with less than 40% occupancy
 • Helps you find the least crowded spots
 • Includes occupancy percentage and current crowd count
@@ -126,6 +127,18 @@ This bot sends you notifications about less crowded buildings on campus.
         // Error handling
         this.bot.on('error', (error) => {
             console.error('❌ Telegram bot error:', error.message);
+        });
+
+        // Handle polling errors (e.g. duplicate bot instances) gracefully
+        this.bot.on('polling_error', (error) => {
+            if (error?.code === 'ETELEGRAM' && /409/.test(error.message || '')) {
+                if (!this.hasLoggedPollingConflict) {
+                    console.warn('⚠️ Telegram polling conflict detected; ignoring duplicate polling instance.');
+                    this.hasLoggedPollingConflict = true;
+                }
+                return; // swallow repeat conflict noise
+            }
+            console.error('❌ Telegram bot polling error:', error?.message || error);
         });
 
         console.log('🤖 Telegram bot handlers setup complete');
