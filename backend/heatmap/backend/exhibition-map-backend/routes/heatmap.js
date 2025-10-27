@@ -68,12 +68,12 @@ router.get("/map-data", async (req, res) => {
     let useCache = true;
 
     if (dbResult.rows.length > 0) {
-      // check if any row is older than 1 minutes
+      // check if any row is older than 1 minutes (changed from 0.002 to 1 for real-time updates)
       console.log("--------------------------------------");
       for (let row of dbResult.rows) {
         const diff = (now - new Date(row.status_timestamp)) / 1000 / 60; // diff in minutes
         console.log(`Building ${row.building_id} data age: ${diff.toFixed(2)} minutes`);
-        if (diff > 0.002) {
+        if (diff > 0.25) { // Cache expires after 15 seconds (0.25 minutes)
           useCache = false;
           console.log(`Cache expired for building_id ${row.building_id}, fetching fresh data.`);
           break;
@@ -143,42 +143,50 @@ router.get("/map-data", async (req, res) => {
     // 2️ Otherwise fetch from API
     console.log("Fetching fresh data from sample buildings...");
     
-    // Use sample data directly instead of making HTTP call to avoid infinite loop
+    // Helper function to generate random crowd count with realistic variation
+    const getRandomCrowd = (baseCount, capacity) => {
+      // Add random variation between -20% to +30% of base count
+      const variation = Math.floor(baseCount * (Math.random() * 0.5 - 0.2));
+      const newCount = Math.max(0, Math.min(capacity, baseCount + variation));
+      return newCount;
+    };
+    
+    // Use sample data with dynamic random variation to simulate real-time changes
     const sampleBuildings = [
-      { id: 1, building_id: "B1", Build_Name: "Engineering Carpentry Shop", total_count: 30 },
-      { id: 2, building_id: "B2", Build_Name: "Engineering Workshop", total_count: 10 },
-      { id: 3, building_id: "B3", Build_Name: "", total_count: 0 },
-      { id: 4, building_id: "B4", Build_Name: "Generator Room", total_count: 30 },
-      { id: 5, building_id: "B5", Build_Name: "", total_count: 70 },
-      { id: 6, building_id: "B6", Build_Name: "Structure Lab", total_count: 90 },
-      { id: 7, building_id: "B7", Build_Name: "Administrative Building", total_count: 90 },
-      { id: 8, building_id: "B8", Build_Name: "Canteen", total_count: 40 },
-      { id: 9, building_id: "B9", Build_Name: "Lecture Room 10/11", total_count: 40 },
-      { id: 10, building_id: "B10", Build_Name: "Engineering Library", total_count: 0 },
-      { id: 11, building_id: "B11", Build_Name: "Department of Chemical and process Engineering", total_count: 0 },
-      { id: 12, building_id: "B12", Build_Name: "Security Unit", total_count: 40 },
-      { id: 13, building_id: "B13", Build_Name: "Drawing Office 2", total_count: 70 },
-      { id: 14, building_id: "B14", Build_Name: "Faculty Canteen", total_count: 0 },
-      { id: 15, building_id: "B15", Build_Name: "Department of Manufacturing and Industrial Engineering", total_count: 0 },
-      { id: 16, building_id: "B16", Build_Name: "Professor E.O.E. Perera Theater", total_count: 50 },
-      { id: 17, building_id: "B17", Build_Name: "Electronic Lab", total_count: 0 },
-      { id: 18, building_id: "B18", Build_Name: "Washrooms", total_count: 0 },
-      { id: 19, building_id: "B19", Build_Name: "Electrical and Electronic Workshop", total_count: 66 },
-      { id: 20, building_id: "B20", Build_Name: "Department of Computer Engineering", total_count: 0 },
-      { id: 21, building_id: "B21", Build_Name: "", total_count: 67 },
-      { id: 22, building_id: "B22", Build_Name: "Environmental Lab", total_count: 33 },
-      { id: 23, building_id: "B23", Build_Name: "Applied Mechanics Lab", total_count: 0 },
-      { id: 24, building_id: "B24", Build_Name: "New Mechanics Lab", total_count: 80 },
-      { id: 25, building_id: "B25", Build_Name: "", total_count: 100 },
-      { id: 26, building_id: "B26", Build_Name: "", total_count: 0 },
-      { id: 27, building_id: "B27", Build_Name: "", total_count: 0 },
-      { id: 28, building_id: "B28", Build_Name: "Materials Lab", total_count: 0 },
-      { id: 29, building_id: "B29", Build_Name: "Thermodynamics Lab", total_count: 0 },
-      { id: 30, building_id: "B30", Build_Name: "Fluids Lab", total_count: 20 },
-      { id: 31, building_id: "B31", Build_Name: "Surveying and Soil Lab", total_count: 0 },
-      { id: 32, building_id: "B32", Build_Name: "Department of Engineering Mathematics", total_count: 68 },
-      { id: 33, building_id: "B33", Build_Name: "Drawing Office 1", total_count: 0 },
-      { id: 34, building_id: "B34", Build_Name: "Department of Electrical and Electronic Engineering ", total_count: 70 }
+      { id: 1, building_id: "B1", Build_Name: "Engineering Carpentry Shop", total_count: getRandomCrowd(30, 120) },
+      { id: 2, building_id: "B2", Build_Name: "Engineering Workshop", total_count: getRandomCrowd(10, 100) },
+      { id: 3, building_id: "B3", Build_Name: "", total_count: getRandomCrowd(5, 60) },
+      { id: 4, building_id: "B4", Build_Name: "Generator Room", total_count: getRandomCrowd(30, 120) },
+      { id: 5, building_id: "B5", Build_Name: "", total_count: getRandomCrowd(70, 120) },
+      { id: 6, building_id: "B6", Build_Name: "Structure Lab", total_count: getRandomCrowd(90, 150) },
+      { id: 7, building_id: "B7", Build_Name: "Administrative Building", total_count: getRandomCrowd(35, 50) },
+      { id: 8, building_id: "B8", Build_Name: "Canteen", total_count: getRandomCrowd(40, 80) },
+      { id: 9, building_id: "B9", Build_Name: "Lecture Room 10/11", total_count: getRandomCrowd(120, 200) },
+      { id: 10, building_id: "B10", Build_Name: "Engineering Library", total_count: getRandomCrowd(15, 40) },
+      { id: 11, building_id: "B11", Build_Name: "Department of Chemical and process Engineering", total_count: getRandomCrowd(35, 80) },
+      { id: 12, building_id: "B12", Build_Name: "Security Unit", total_count: getRandomCrowd(20, 60) },
+      { id: 13, building_id: "B13", Build_Name: "Drawing Office 2", total_count: getRandomCrowd(25, 40) },
+      { id: 14, building_id: "B14", Build_Name: "Faculty Canteen", total_count: getRandomCrowd(45, 80) },
+      { id: 15, building_id: "B15", Build_Name: "Department of Manufacturing and Industrial Engineering", total_count: getRandomCrowd(50, 100) },
+      { id: 16, building_id: "B16", Build_Name: "Professor E.O.E. Perera Theater", total_count: getRandomCrowd(50, 60) },
+      { id: 17, building_id: "B17", Build_Name: "Electronic Lab", total_count: getRandomCrowd(40, 90) },
+      { id: 18, building_id: "B18", Build_Name: "Washrooms", total_count: getRandomCrowd(15, 120) },
+      { id: 19, building_id: "B19", Build_Name: "Electrical and Electronic Workshop", total_count: getRandomCrowd(35, 70) },
+      { id: 20, building_id: "B20", Build_Name: "Department of Computer Engineering", total_count: getRandomCrowd(45, 90) },
+      { id: 21, building_id: "B21", Build_Name: "", total_count: getRandomCrowd(60, 120) },
+      { id: 22, building_id: "B22", Build_Name: "Environmental Lab", total_count: getRandomCrowd(33, 70) },
+      { id: 23, building_id: "B23", Build_Name: "Applied Mechanics Lab", total_count: getRandomCrowd(40, 90) },
+      { id: 24, building_id: "B24", Build_Name: "New Mechanics Lab", total_count: getRandomCrowd(80, 150) },
+      { id: 25, building_id: "B25", Build_Name: "", total_count: getRandomCrowd(30, 60) },
+      { id: 26, building_id: "B26", Build_Name: "", total_count: getRandomCrowd(55, 120) },
+      { id: 27, building_id: "B27", Build_Name: "", total_count: getRandomCrowd(70, 160) },
+      { id: 28, building_id: "B28", Build_Name: "Materials Lab", total_count: getRandomCrowd(45, 100) },
+      { id: 29, building_id: "B29", Build_Name: "Thermodynamics Lab", total_count: getRandomCrowd(50, 100) },
+      { id: 30, building_id: "B30", Build_Name: "Fluids Lab", total_count: getRandomCrowd(45, 100) },
+      { id: 31, building_id: "B31", Build_Name: "Surveying and Soil Lab", total_count: getRandomCrowd(35, 80) },
+      { id: 32, building_id: "B32", Build_Name: "Department of Engineering Mathematics", total_count: getRandomCrowd(30, 60) },
+      { id: 33, building_id: "B33", Build_Name: "Drawing Office 1", total_count: getRandomCrowd(55, 120) },
+      { id: 34, building_id: "B34", Build_Name: "Department of Electrical and Electronic Engineering ", total_count: getRandomCrowd(60, 120) }
     ];
     
     const buildings = sampleBuildings;
