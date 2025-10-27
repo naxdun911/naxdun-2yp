@@ -8,7 +8,7 @@ const pool = new Pool({
   user: process.env.DATABASE_USER || 'postgres',
   host: process.env.DATABASE_HOST || 'localhost',
   database: process.env.DATABASE_NAME || 'heatmap_db',
-  password: process.env.DATABASE_PASSWORD || '1234',
+  password: process.env.DATABASE_PASSWORD || '9295',
   port: process.env.DATABASE_PORT || 5432,
 });
 
