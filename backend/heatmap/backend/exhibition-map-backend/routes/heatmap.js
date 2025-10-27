@@ -34,37 +34,22 @@ function getHeatmapColor(current, capacity) {
   //if (ratio < 0.9) return "#ef4444"; // orange
   return "#ef4444"; // red
 }
-function pick(obj, keys) {
-  return keys.reduce((result, key) => {
-    if (obj.hasOwnProperty(key)) {
-      if(key=="Build_Name") result["building_name"] = obj[key];
-      if(key=="building_id") result["building_id"] = obj[key];
-      if(key=="total_count") result["current_crowd"] = obj[key];
-      
-      //result[key] = obj[key];
-    }
-    return result;
-  }, {});
-}
-async function fetchCapacities() {
-  const capacityResult = await pool.query("SELECT building_id, building_capacity FROM buildings");
-  const capacityMap = {};
-  for (let row of capacityResult.rows) {
-    capacityMap[row.building_id] = row.building_capacity;
-  }
-  return capacityMap;
-}
-
-
-
-// Route to serve map data with caching
+// Route to serve map data sourced from current_status (generator output)
 router.get("/map-data", async (req, res) => {
   try {
-    // 1️ Check if cached data is recent (less than 1 minutes)
-    const dbResult = await pool.query("SELECT b.building_id,b.building_name,cs.current_crowd,b.building_capacity,cs.color,cs.status_timestamp FROM buildings b JOIN current_status cs ON b.building_id = cs.building_id");
-    const now = new Date();
-    const capacityMap = await fetchCapacities();
+    const dbResult = await pool.query(
+      `SELECT b.building_id,
+              b.building_name,
+              b.building_capacity,
+              cs.current_crowd,
+              cs.color,
+              cs.status_timestamp
+         FROM buildings b
+         JOIN current_status cs ON b.building_id = cs.building_id
+        ORDER BY b.building_id`
+    );
 
+<<<<<<< Updated upstream
     let useCache = true;
 
     if (dbResult.rows.length > 0) {
@@ -185,38 +170,44 @@ router.get("/map-data", async (req, res) => {
     //console.log(`Fetched ${buildings} buildings from API.`);
     
     const coloredBuildings = [];
+=======
+    if (dbResult.rows.length === 0) {
+      return res.status(503).json({
+        success: false,
+        error: "No building occupancy data available. Ensure the data generator is running."
+      });
+    }
 
-    for (let building of buildings) {
-      const color = getHeatmapColor(building.total_count, capacityMap[building.building_id] );
-      const timestamp = new Date().toLocaleString();
+    const dataWithPredictions = [];
+>>>>>>> Stashed changes
 
-      // Get recent historical data for EMA prediction (1 hour ahead)
-      let predictedCount = building.total_count; // Default to current count
+    for (const row of dbResult.rows) {
+      let predictedCount = row.current_crowd;
       let predictionConfidence = 'low';
       let predictionMethod = 'fallback';
-      
+
       try {
         const historyResult = await pool.query(
-          `SELECT current_crowd, timestamp 
-           FROM building_history 
-           WHERE building_id = $1 
-             AND timestamp >= NOW() - INTERVAL '6 hours'
-           ORDER BY timestamp ASC`,
-          [building.building_id]
+          `SELECT current_crowd, timestamp
+             FROM building_history
+            WHERE building_id = $1
+              AND timestamp >= NOW() - INTERVAL '6 hours'
+            ORDER BY timestamp ASC`,
+          [row.building_id]
         );
-        
+
         if (historyResult.rows.length >= 3) {
-          const historicalData = historyResult.rows.map(row => ({
-            timestamp: row.timestamp,
-            current_count: row.current_crowd
+          const historicalData = historyResult.rows.map(histRow => ({
+            timestamp: histRow.timestamp,
+            current_count: histRow.current_crowd
           }));
-          
+
           const prediction = predictBuildingOccupancy(historicalData, {
             hoursAhead: 1,
             periods: 12,
             minDataPoints: 3
           });
-          
+
           if (prediction && prediction.method !== 'fallback') {
             predictedCount = prediction.prediction;
             predictionConfidence = prediction.confidence;
@@ -224,43 +215,28 @@ router.get("/map-data", async (req, res) => {
           }
         }
       } catch (predictionError) {
-        console.error(`EMA prediction error for building ${building.building_id}:`, predictionError.message);
+        console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
       }
 
-      coloredBuildings.push({ 
-        ...pick(building, ["building_id","Build_Name", "total_count"]),
-        building_capacity: capacityMap[building.building_id], 
-        color, 
-        status_timestamp: timestamp,
+      const color = row.color || getHeatmapColor(row.current_crowd, row.building_capacity);
+
+      dataWithPredictions.push({
+        building_id: row.building_id,
+        building_name: row.building_name,
+        current_crowd: row.current_crowd,
+        building_capacity: row.building_capacity,
+        color,
+        status_timestamp: row.status_timestamp,
         predicted_count: predictedCount,
         prediction_confidence: predictionConfidence,
         prediction_method: predictionMethod
       });
-
-      //console.log(building.total_count,building.building_id);
-      // Insert or update current_status table
-      await pool.query(
-        `INSERT INTO current_status (building_id, current_crowd, color, status_timestamp)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (building_id)
-         DO UPDATE SET current_crowd = EXCLUDED.current_crowd,
-                       color = EXCLUDED.color,
-                       status_timestamp = EXCLUDED.status_timestamp`,
-        [building.building_id, building.total_count, color, timestamp]
-      );
-
-      // Also insert into building_history for historical tracking
-      await pool.query(
-        `INSERT INTO building_history (building_id, current_crowd, timestamp)
-         VALUES ($1, $2, NOW())`,
-        [building.building_id, building.total_count]
-      );
     }
 
     res.json({
       success: true,
-      source: "Buildings API",
-      data: coloredBuildings,
+      source: "Current Status",
+      data: dataWithPredictions
     });
 
   } catch (error) {
