@@ -1,7 +1,6 @@
 // SvgHeatmap.jsx
 import { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
-import PredictionConfigPanel from "./PredictionConfigPanel.tsx";
 
 const SVG_URL = "/campus.svg";
 // If you use a Vite proxy, set API_URL = "/heatmap/map-data"
@@ -87,7 +86,6 @@ export default function SvgHeatmap() {
   useEffect(() => { colorsRef.current = buildingColors; }, [buildingColors]);
 
   const [popup, setPopup] = useState(null);
-  const [showPredictionConfig, setShowPredictionConfig] = useState(false);
 
   /* -------- Derived lists -------- */
   const list = useMemo(() => {
@@ -473,16 +471,6 @@ export default function SvgHeatmap() {
           </div>
         </aside>
       </main>
-
-      {/* Prediction Configuration Panel */}
-      <PredictionConfigPanel
-        isOpen={showPredictionConfig}
-        onToggle={() => setShowPredictionConfig(!showPredictionConfig)}
-        onConfigChange={(config) => {
-          console.log('Prediction config updated:', config);
-          // You can store this config and pass it to prediction API calls
-        }}
-      />
 
       <style>{`
         :root{ color-scheme: light; }
