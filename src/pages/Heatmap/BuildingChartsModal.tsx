@@ -31,7 +31,7 @@ interface PredictionData {
 interface HistoryItem {
   timestamp: string;
   current_count: number;
-  occupancy_rate: string;
+  occupancy_rate: number;
 }
 
 interface TooltipProps {
@@ -304,7 +304,7 @@ const BuildingChartsModal = ({ buildingId, buildingName, onClose }: BuildingChar
     if (!buildingData?.history) return [];
     
     // Format data for charts and reverse to show chronological order
-    return buildingData.history.reverse().map((item: HistoryItem) => {
+  return buildingData.history.slice().reverse().map((item: HistoryItem) => {
   const dateObj = new Date(item.timestamp);
   let formatted;
   if (timeRange <= 24) {
@@ -448,6 +448,7 @@ const BuildingChartsModal = ({ buildingId, buildingName, onClose }: BuildingChar
             {/* Occupancy Gauge */}
             <OccupancyGauge 
               current={buildingData?.currentCount || 0}
+              predicted={buildingData?.predictedCount ?? undefined}
               capacity={buildingData?.capacity || 0}
             />
           </div>
