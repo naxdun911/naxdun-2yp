@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 
 const HEATMAP_API_URL = import.meta.env.VITE_HEATMAP_API_URL || "http://localhost:3897";
@@ -13,11 +13,8 @@ interface HistoryItem {
 
 interface BuildingHistoryChartProps {
   buildingId: string;
-  buildingName?: string;
   timeRange?: number; // hours
   height?: number;
-  showTitle?: boolean;
-  showTimeRangeSelector?: boolean;
 }
 
 // Custom tooltip for line chart
@@ -37,16 +34,13 @@ const HistoryTooltip = ({ active, payload }: any) => {
 
 const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({ 
   buildingId, 
-  buildingName,
   timeRange: initialTimeRange = 24,
   height = 200,
-  showTitle = true,
-  showTimeRangeSelector = false
 }) => {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState(initialTimeRange);
+  const timeRange = initialTimeRange;
 
   useEffect(() => {
     if (buildingId) {
@@ -133,35 +127,6 @@ const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({
 
   return (
     <div className="bg-white rounded-lg border border-gray-200">
-      {/* Header */}
-      {showTitle && (
-        <div className="p-3 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold flex items-center">
-              <TrendingUp className="w-4 h-4 mr-2 text-blue-600" />
-              {buildingName ? `${buildingName} - ` : ''}Occupancy History
-            </h4>
-            {showTimeRangeSelector && (
-              <div className="flex items-center gap-1">
-                {[6, 12, 24, 48].map(hours => (
-                  <button
-                    key={hours}
-                    onClick={() => setTimeRange(hours)}
-                    className={`px-2 py-0.5 rounded text-xs ${
-                      timeRange === hours 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {hours}h
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      
       {/* Chart */}
       <div className="p-3">
         {historyData.length > 0 ? (
@@ -194,26 +159,6 @@ const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({
                 />
               </LineChart>
             </ResponsiveContainer>
-            
-            {/* Stats Summary */}
-            <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-              <div className="bg-gray-50 p-2 rounded text-center">
-                <div className="text-gray-600">Peak</div>
-                <div className="font-bold text-gray-900">
-                  {Math.max(...historyData.map(d => d.current_count))}
-                </div>
-              </div>
-              <div className="bg-gray-50 p-2 rounded text-center">
-                <div className="text-gray-600">Average</div>
-                <div className="font-bold text-gray-900">
-                  {Math.round(historyData.reduce((sum, d) => sum + d.current_count, 0) / historyData.length)}
-                </div>
-              </div>
-              <div className="bg-gray-50 p-2 rounded text-center">
-                <div className="text-gray-600">Data Points</div>
-                <div className="font-bold text-gray-900">{historyData.length}</div>
-              </div>
-            </div>
           </>
         ) : (
           <div className="flex items-center justify-center text-gray-500 text-xs" style={{ height }}>
