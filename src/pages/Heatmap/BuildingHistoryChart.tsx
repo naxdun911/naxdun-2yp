@@ -66,8 +66,14 @@ const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({
       if (response.data.success) {
         const history = response.data.data.history || [];
         
+        // Reduce data points by sampling to max 50 points for cleaner chart
+        const maxPoints = 50;
+        const sampledHistory = history.length > maxPoints
+          ? history.filter((_: any, index: number) => index % Math.ceil(history.length / maxPoints) === 0)
+          : history;
+        
         // Format data for chart
-        const formattedData = history.reverse().map((item: HistoryItem) => {
+        const formattedData = sampledHistory.reverse().map((item: HistoryItem) => {
           const dateObj = new Date(item.timestamp);
           let formatted;
           if (timeRange <= 24) {
@@ -162,7 +168,7 @@ const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({
           <>
             <ResponsiveContainer width="100%" height={height}>
               <LineChart data={historyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
                 <XAxis 
                   dataKey="timestamp" 
                   fontSize={10}
@@ -181,9 +187,9 @@ const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({
                   type="monotone" 
                   dataKey="current_count" 
                   stroke={getStatusColor()}
-                  strokeWidth={2}
-                  dot={{ fill: getStatusColor(), strokeWidth: 2, r: 3 }}
-                  activeDot={{ r: 5 }}
+                  strokeWidth={2.5}
+                  dot={false}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
                   name="Count"
                 />
               </LineChart>
