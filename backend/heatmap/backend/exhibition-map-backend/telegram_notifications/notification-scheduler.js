@@ -7,14 +7,14 @@ class NotificationScheduler {
     constructor() {
         this.isRunning = false;
         this.task = null;
-        this.intervalSeconds = 30;
+    this.intervalSeconds = 10;
     }
 
     /**
      * Start the notification scheduler
      * @param {number} intervalSeconds - Interval in seconds (default: 30)
      */
-    start(intervalSeconds = 30) {
+    start(intervalSeconds = 10) {
         if (this.isRunning) {
             console.log('⚠️ Notification scheduler is already running');
             return;
@@ -22,8 +22,8 @@ class NotificationScheduler {
 
         this.intervalSeconds = intervalSeconds;
         
-        // Create cron expression for every N seconds
-        // Note: node-cron minimum interval is 1 second, so we'll use setInterval instead for 30-second intervals
+    // Create cron expression for every N seconds
+    // Note: node-cron minimum interval is 1 second, so we'll use setInterval instead for sub-minute intervals
         if (intervalSeconds < 60) {
             this.startIntervalScheduler();
         } else {
@@ -102,7 +102,7 @@ class NotificationScheduler {
      * Restart the scheduler with new interval
      * @param {number} intervalSeconds - New interval in seconds
      */
-    restart(intervalSeconds = 30) {
+    restart(intervalSeconds = 10) {
         this.stop();
         setTimeout(() => {
             this.start(intervalSeconds);

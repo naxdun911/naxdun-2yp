@@ -50,9 +50,9 @@ const result = predictBuildingOccupancy(historicalData, {
 - **Capacity constraints**: Ensures counts don't exceed building capacity
 
 **Automatic Data Generation:**
-- Generates data every **5 minutes** by default
+- Generates data every **10 seconds** by default
 - Writes to `current_status` and `building_history` tables
-- Automatically generates 24 hours of historical data on first run
+- Automatically generates 1 hour of historical data on first run
 
 ### 3. **Updated Routes** (`routes/heatmap.js`)
 - Replaced `holtPrediction` import with `emaPrediction`
@@ -194,10 +194,10 @@ generationIntervalMinutes: 5
    ```
 
 4. **Automatic initialization**:
-   - Data generator automatically initializes
-   - If database is empty, generates 24 hours of historical data
-   - Starts generating data every 5 minutes
-   - EMA predictions are calculated on each API request
+  - Data generator automatically initializes
+  - If database is empty, generates 1 hour of historical data
+  - Starts generating data every 10 seconds
+  - EMA predictions are calculated on each API request
 
 ## Testing
 
