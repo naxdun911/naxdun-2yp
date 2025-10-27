@@ -232,7 +232,7 @@ export default function SvgHeatmap() {
   }
 
   useEffect(() => {
-    const t = setInterval(fetchLive, 15000);
+    const t = setInterval(fetchLive, 10000);
     fetchLive();
     return () => clearInterval(t);
   }, []);

@@ -12,17 +12,13 @@ const dataGenerator = require('./utils/dataGenerator');
 // ===============================
 app.use(cors());
 app.use(express.json());
-
-
-
  
 // ===============================
 // FEATURE-BASED ROUTES
 // ===============================
 
 // Register each feature router
-app.use('/heatmap', require('./routes/heatmap'));       // Heatmap data from CCTV
-app.use('/api', require('./routes/sample_buildings'));  // Demo building data
+app.use('/heatmap', require('./routes/heatmap'));
 
 // Telegram notification routes
 app.get('/telegram/status', (req, res) => {
@@ -64,9 +60,16 @@ app.get('/generator/status', (req, res) => {
 
 app.post('/generator/start', async (req, res) => {
     try {
-        const intervalMinutes = parseInt(req.body.intervalMinutes) || 5;
-        await dataGenerator.start(intervalMinutes);
-        res.json({ success: true, message: `Data generator started with ${intervalMinutes} minute interval` });
+        const { intervalSeconds, intervalMinutes } = req.body || {};
+        const interval = Number(intervalSeconds) > 0
+            ? Number(intervalSeconds)
+            : Number(intervalMinutes) > 0
+                ? Number(intervalMinutes) * 60
+                : 10;
+
+        await dataGenerator.start({ intervalSeconds: interval });
+        const suffix = interval === 1 ? 'second' : 'seconds';
+        res.json({ success: true, message: `Data generator started with ${interval} ${suffix}` });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -83,10 +86,16 @@ app.post('/generator/stop', (req, res) => {
 
 app.post('/generator/generate-historical', async (req, res) => {
     try {
-        const hoursBack = parseInt(req.body.hoursBack) || 24;
-        const intervalMinutes = parseInt(req.body.intervalMinutes) || 5;
-        await dataGenerator.generateHistoricalData(hoursBack, intervalMinutes);
-        res.json({ success: true, message: `Generated ${hoursBack} hours of historical data` });
+        const hoursBack = Number(req.body?.hoursBack) > 0 ? Number(req.body.hoursBack) : 1;
+        const intervalSecondsInput = Number(req.body?.intervalSeconds);
+        const intervalMinutesInput = Number(req.body?.intervalMinutes);
+        const intervalSeconds = intervalSecondsInput > 0
+            ? intervalSecondsInput
+            : intervalMinutesInput > 0
+                ? intervalMinutesInput * 60
+                : 10;
+        await dataGenerator.generateHistoricalData(hoursBack, intervalSeconds);
+        res.json({ success: true, message: `Generated ${hoursBack} hour(s) of historical data at ${intervalSeconds}s intervals` });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -110,7 +119,7 @@ app.listen(PORT, async () => {
     if (botToken && botToken !== 'YOUR_BOT_TOKEN_HERE') {
         try {
             await telegramNotificationService.initialize(botToken);
-            telegramNotificationService.start(30); // Start with 30-second intervals
+            telegramNotificationService.start(10); // Align notifications with 10-second updates
             console.log('🤖 Telegram notification service started successfully');
         } catch (error) {
             console.error('❌ Failed to start Telegram service:', error.message);
@@ -130,12 +139,12 @@ app.listen(PORT, async () => {
         const historyCount = parseInt(historyCheck.rows[0].count);
         
         if (historyCount < 100) {
-            console.log('📊 Generating initial historical data (past 24 hours)...');
-            await dataGenerator.generateHistoricalData(24, 5);
+            console.log('📊 Generating initial historical data (past 1 hour)...');
+            await dataGenerator.generateHistoricalData(1, 10);
         }
         
-        // Start the data generator (generate data every 5 minutes)
-        await dataGenerator.start(5);
+        // Start the data generator (generate data every 10 seconds)
+        await dataGenerator.start({ intervalSeconds: 10 });
         console.log('🚀 Data generator service started successfully');
     } catch (error) {
         console.error('❌ Failed to start data generator:', error.message);

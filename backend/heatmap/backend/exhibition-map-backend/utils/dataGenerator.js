@@ -15,7 +15,7 @@ class OccupancyDataGenerator {
     this.buildings = [];
     this.isRunning = false;
     this.generatorInterval = null;
-    this.generationIntervalMinutes = 1; // Generate data every 5 minutes
+    this.generationIntervalSeconds = 10; // Default to 10-second updates
   }
 
   /**
@@ -223,11 +223,31 @@ class OccupancyDataGenerator {
     }
   }
 
+  resolveIntervalSeconds(input) {
+    if (typeof input === 'number') {
+      if (!Number.isFinite(input) || input <= 0) return this.generationIntervalSeconds;
+      // Backward compatibility: values under 60 were previously treated as minutes
+      return input < 60 ? Math.round(input * 60) : Math.round(input);
+    }
+
+    if (input && typeof input === 'object') {
+      const { intervalSeconds, intervalMinutes } = input;
+      if (Number.isFinite(intervalSeconds) && intervalSeconds > 0) {
+        return Math.round(intervalSeconds);
+      }
+      if (Number.isFinite(intervalMinutes) && intervalMinutes > 0) {
+        return Math.round(intervalMinutes * 60);
+      }
+    }
+
+    return this.generationIntervalSeconds;
+  }
+
   /**
    * Start the data generator
-   * @param {number} intervalMinutes - Generation interval in minutes
+   * @param {number|Object} options - Interval in seconds or options object
    */
-  async start(intervalMinutes = 5) {
+  async start(options = {}) {
     if (this.isRunning) {
       console.log('⚠️ Data generator is already running');
       return;
@@ -237,28 +257,26 @@ class OccupancyDataGenerator {
       await this.initialize();
     }
 
-    this.generationIntervalMinutes = intervalMinutes;
+    const intervalSeconds = this.resolveIntervalSeconds(options) || 10;
+    this.generationIntervalSeconds = intervalSeconds;
     this.isRunning = true;
 
-    // Generate initial data immediately
-    try {
-      const data = this.generateDataForAllBuildings();
-      await this.writeToDatabase(data);
-    } catch (error) {
-      console.error('❌ Error generating initial data:', error.message);
-    }
-
-    // Set up periodic generation
-    this.generatorInterval = setInterval(async () => {
+    const runGeneration = async () => {
       try {
         const data = this.generateDataForAllBuildings();
         await this.writeToDatabase(data);
       } catch (error) {
         console.error('❌ Error in data generation cycle:', error.message);
       }
-    }, intervalMinutes * 60 * 1000);
+    };
 
-    console.log(`🚀 Data generator started - generating data every ${intervalMinutes} minute(s)`);
+    // Generate initial data immediately
+    await runGeneration();
+
+    // Set up periodic generation
+    this.generatorInterval = setInterval(runGeneration, intervalSeconds * 1000);
+
+    console.log(`🚀 Data generator started - generating data every ${intervalSeconds} second(s)`);
   }
 
   /**
@@ -287,9 +305,9 @@ class OccupancyDataGenerator {
     return {
       isRunning: this.isRunning,
       buildingsCount: this.buildings.length,
-      intervalMinutes: this.generationIntervalMinutes,
+      intervalSeconds: this.generationIntervalSeconds,
       nextGenerationIn: this.isRunning 
-        ? `${this.generationIntervalMinutes} minutes` 
+        ? `${this.generationIntervalSeconds} seconds` 
         : 'Not running'
     };
   }
@@ -297,16 +315,17 @@ class OccupancyDataGenerator {
   /**
    * Generate historical data for past hours (useful for initial setup)
    * @param {number} hoursBack - Number of hours to generate data for
-   * @param {number} intervalMinutes - Interval between data points
+   * @param {number} intervalSeconds - Interval between data points
    */
-  async generateHistoricalData(hoursBack = 24, intervalMinutes = 5) {
-    console.log(`📊 Generating historical data for past ${hoursBack} hours...`);
+  async generateHistoricalData(hoursBack = 1, intervalSeconds = 10) {
+    console.log(`📊 Generating historical data for past ${hoursBack} hour(s) with ${intervalSeconds}s spacing...`);
     
     if (this.buildings.length === 0) {
       await this.initialize();
     }
 
-    const dataPoints = (hoursBack * 60) / intervalMinutes;
+    const safeIntervalSeconds = Math.max(1, Number(intervalSeconds) || 10);
+    const dataPoints = Math.ceil((hoursBack * 3600) / safeIntervalSeconds);
     const now = new Date();
     const client = await pool.connect();
 
@@ -314,7 +333,7 @@ class OccupancyDataGenerator {
       await client.query('BEGIN');
 
       for (let i = dataPoints; i >= 0; i--) {
-        const timestamp = new Date(now.getTime() - i * intervalMinutes * 60 * 1000);
+        const timestamp = new Date(now.getTime() - i * safeIntervalSeconds * 1000);
         
         for (const building of this.buildings) {
           const hour = timestamp.getHours();
