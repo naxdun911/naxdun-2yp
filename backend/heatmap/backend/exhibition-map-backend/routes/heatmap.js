@@ -50,6 +50,7 @@ router.get("/map-data", async (req, res) => {
     );
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     let useCache = true;
 
     if (dbResult.rows.length > 0) {
@@ -181,6 +182,17 @@ router.get("/map-data", async (req, res) => {
     const dataWithPredictions = [];
 >>>>>>> Stashed changes
 
+=======
+    if (dbResult.rows.length === 0) {
+      return res.status(503).json({
+        success: false,
+        error: "No building occupancy data available. Ensure the data generator is running."
+      });
+    }
+
+    const dataWithPredictions = [];
+
+>>>>>>> Stashed changes
     for (const row of dbResult.rows) {
       let predictedCount = row.current_crowd;
       let predictionConfidence = 'low';
