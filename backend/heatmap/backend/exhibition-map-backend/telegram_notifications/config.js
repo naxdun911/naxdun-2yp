@@ -9,7 +9,7 @@ module.exports = {
         // Default settings
         defaultSettings: {
             occupancyThreshold: 40, // Percentage threshold for low occupancy notifications
-            notificationInterval: 30, // Seconds between notifications
+            notificationInterval: 10, // Seconds between notifications
             enableAutoNotifications: true
         }
     },
@@ -20,7 +20,7 @@ module.exports = {
         lowOccupancyThreshold: 40,
         
         // Interval between notifications (seconds)
-        intervalSeconds: 30,
+    intervalSeconds: 10,
         
         // Message settings
         includeTimestamp: true,

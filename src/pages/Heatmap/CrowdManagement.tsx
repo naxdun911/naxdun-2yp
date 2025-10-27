@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart } from 'recharts';
-import { Users, TrendingUp, Activity, Clock, RefreshCw, AlertCircle, MessageCircle, Bell, ExternalLink } from 'lucide-react';
+import { Users, Activity, Clock, RefreshCw, MessageCircle, Bell, ExternalLink } from 'lucide-react';
 import SvgHeatmap from "./SvgHeatmap.jsx";
+import BuildingOccupancyChart from "./BuildingOccupancyChart.tsx";
 import { LoadingView, ErrorView } from "./utils/uiHelpers";
 
 interface CrowdData {
@@ -14,15 +14,23 @@ interface CrowdData {
   capacity: number;  // Made required since we have it in database
 }
 
+interface ApiBuilding {
+  building_id: string;
+  building_name?: string | null;
+  current_crowd?: number | null;
+  predicted_count?: number | null;
+  status_timestamp?: string | null;
+  color?: string | null;
+  building_capacity?: number | null;
+}
+
 const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>('2025-10-26');
-  const [showDateInput, setShowDateInput] = useState<boolean>(false);
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
+  const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
   // Map building IDs to real building names (from SvgHeatmap.jsx)
   const getBuildingName = (buildingId: string, fallbackName?: string): string => {
@@ -78,32 +86,33 @@ const CrowdManagement: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      const result = await response.json();
+  const result: { success: boolean; data: ApiBuilding[]; error?: string } = await response.json();
       
       if (!result.success) {
         throw new Error(result.error || 'Failed to fetch building data');
       }
       
       // Transform API data to match our interface
-      const apiData: CrowdData[] = result.data.map((building: any, index: number) => {
+  const apiData: CrowdData[] = result.data.map((building: ApiBuilding, index: number) => {
         const colors = ['#ff6b6b', '#4ecdc4', '#ff9f43', '#6c5ce7', '#a29bfe', '#74b9ff', '#fd79a8', '#fdcb6e', '#6c5ce7', '#55a3ff'];
         
         return {
           buildingId: building.building_id,
-          buildingName: getBuildingName(building.building_id, building.building_name),
-          currentCount: building.current_crowd || 0,
-          predictedCount: building.predicted_count || building.current_crowd || 0,
-          timestamp: building.status_timestamp || new Date().toLocaleTimeString(),
-          color: building.color || colors[index % colors.length],
-          capacity: building.building_capacity || 100
+          buildingName: getBuildingName(building.building_id, building.building_name ?? undefined),
+          currentCount: building.current_crowd ?? 0,
+          predictedCount: (building.predicted_count ?? building.current_crowd) ?? 0,
+          timestamp: building.status_timestamp ?? new Date().toLocaleTimeString(),
+          color: building.color ?? colors[index % colors.length],
+          capacity: building.building_capacity ?? 100
         };
       });
       
       setCrowdData(apiData);
       
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch crowd data';
       console.error('Error fetching crowd data:', err);
-      setError(err.message || 'Failed to fetch crowd data');
+      setError(message);
       
       // Don't clear data on error, keep showing last successful data
       // setCrowdData([]);
@@ -130,40 +139,7 @@ const CrowdManagement: React.FC = () => {
         intervalRef.current = null;
       }
     };
-  }, [fetchData]);
-
-  // --- Report generation helpers ---
-  const HEATMAP_API_URL = import.meta.env.VITE_HEATMAP_API_URL || 'http://localhost:3897';
-
-  const downloadPdf = async (url: string, filename?: string) => {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Failed to download: ${res.status}`);
-      const blob = await res.blob();
-      const urlObj = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = urlObj;
-      a.download = filename || 'report.pdf';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(urlObj), 10000);
-    } catch (err: any) {
-      console.error('Download PDF error', err);
-      alert('Failed to download report: ' + (err.message || err));
-    }
-  };
-
-  const handleEnterDate = () => {
-    // show a date input area (toggles visibility)
-    setShowDateInput(s => !s);
-  };
-
-  const handleGenerateReport = async () => {
-    const dateToUse = selectedDate || '2025-10-26';
-    const url = `${HEATMAP_API_URL}/reports/daily?date=${encodeURIComponent(dateToUse)}`;
-    await downloadPdf(url, `report-${dateToUse}.pdf`);
-  };
+  }, [fetchData, crowdData.length]);
 
   // Removed search handler
 
@@ -209,7 +185,7 @@ const CrowdManagement: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <div className="text-white font-medium">Live Monitoring</div>
-                  <div className="text-blue-100 text-sm">Auto-refresh: 30s</div>
+                  <div className="text-blue-100 text-sm">Auto-refresh: 10s</div>
                 </div>
               </div>
             </div>
@@ -239,320 +215,8 @@ const CrowdManagement: React.FC = () => {
           <SvgHeatmap />
         </div>
 
-        {/* Report Generation Panel */}
-        <div className="mb-8 bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold mb-3">Report Generator</h3>
-          <p className="text-sm text-gray-600 mb-4">Generate historical daily reports (PDF). Enter a date or use the default.</p>
-          <div className="flex items-center gap-3">
-            <button
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-              onClick={handleEnterDate}
-            >
-              Enter Date
-            </button>
-
-            <button
-              className="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-              onClick={handleGenerateReport}
-            >
-              Generate Report
-            </button>
-
-            <button
-              className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300"
-              onClick={() => downloadPdf('http://localhost:3897/reports/daily?date=2025-10-26', 'report-2025-10-26.pdf')}
-            >
-              Download Fixed (2025-10-26)
-            </button>
-          </div>
-
-          {showDateInput && (
-            <div className="mt-4">
-              <label className="block text-sm text-gray-700 mb-1">Select date</label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-3 py-2 border rounded-lg"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Enhanced Building Occupancy Chart */}
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 mb-8 overflow-hidden">
-          <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-800">Building Occupancy Overview</h2>
-                  <p className="text-gray-600 mt-1">Current crowd count and intelligent predictions across all buildings</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="bg-white rounded-lg px-4 py-2 shadow-sm border">
-                  <div className="text-sm text-gray-500">Total Buildings</div>
-                  <div className="text-xl font-bold text-gray-800">{crowdData.length}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-6">
-            {/* Enhanced Legend */}
-            <div className="flex items-center justify-center gap-8 mb-6 p-4 bg-gray-50 rounded-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 bg-blue-500 rounded-full shadow-sm"></div>
-                <span className="font-medium text-gray-700">Current Count</span>
-                <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Live</div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 bg-green-500 rounded-full shadow-sm"></div>
-                <span className="font-medium text-gray-700">Predicted Count</span>
-                <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Next Hour</div>
-              </div>
-            </div>
-            
-            {/* Enhanced Chart Container */}
-            <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border border-gray-100">
-              <div className="overflow-x-auto">
-                <div style={{ width: Math.max(900, crowdData.length * 140), height: 450 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={crowdData}
-                      margin={{
-                        top: 30,
-                        right: 40,
-                        left: 30,
-                        bottom: 90,
-                      }}
-                    >
-                      <defs>
-                        <linearGradient id="currentGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                        </linearGradient>
-                        <linearGradient id="predictedGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.1}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
-                      <XAxis 
-                        dataKey="buildingName" 
-                        angle={-45}
-                        textAnchor="end"
-                        height={90}
-                        interval={0}
-                        fontSize={12}
-                        tick={{ fill: '#64748b', fontWeight: '500' }}
-                        axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                      />
-                      <YAxis 
-                        label={{ value: 'People Count', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#64748b', fontWeight: '600' } }}
-                        tick={{ fill: '#64748b', fontWeight: '500' }}
-                        axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
-                        tickLine={{ stroke: '#cbd5e1' }}
-                      />
-                      <Tooltip 
-                        formatter={(value, name) => {
-                          if (name === 'currentCount') return [value, 'Current Count'];
-                          if (name === 'predictedCount') return [value, 'Predicted Count (Next Hour)'];
-                          return [value, name];
-                        }}
-                        labelFormatter={(label) => `Building: ${label}`}
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: '12px',
-                          boxShadow: '0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                          padding: '12px',
-                          fontSize: '14px'
-                        }}
-                        labelStyle={{ color: '#1f2937', fontWeight: '600', marginBottom: '8px' }}
-                      />
-                      {/* Enhanced Current Count Line */}
-                      <Line 
-                        type="monotone" 
-                        dataKey="currentCount" 
-                        stroke="#3b82f6" 
-                        strokeWidth={4}
-                        dot={{ fill: '#3b82f6', strokeWidth: 3, r: 7, filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3))' }}
-                        activeDot={{ r: 10, stroke: '#3b82f6', strokeWidth: 3, fill: '#ffffff', filter: 'drop-shadow(0 4px 8px rgba(59, 130, 246, 0.4))' }}
-                        name="currentCount"
-                      />
-                      {/* Enhanced Predicted Count Line */}
-                      <Line 
-                        type="monotone" 
-                        dataKey="predictedCount" 
-                        stroke="#10b981" 
-                        strokeWidth={4}
-                        strokeDasharray="8 4"
-                        dot={{ fill: '#10b981', strokeWidth: 3, r: 7, filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.3))' }}
-                        activeDot={{ r: 10, stroke: '#10b981', strokeWidth: 3, fill: '#ffffff', filter: 'drop-shadow(0 4px 8px rgba(16, 185, 129, 0.4))' }}
-                        name="predictedCount"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-            {/* Scroll indicator */}
-            {crowdData.length > 6 && (
-              <div className="text-xs text-gray-500 mt-2 text-center">
-                ← Scroll horizontally to view all buildings →
-              </div>
-            )}
-            
-            {/* Enhanced Summary Statistics */}
-            <div className="mt-6 bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <BarChart className="w-5 h-5 text-blue-600" />
-                  Summary Statistics
-                </h3>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Clock className="w-4 h-4" />
-                  Updated just now
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Total Current */}
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200/50">
-                  <div className="flex items-center justify-between mb-3">
-                    <Users className="w-6 h-6 text-blue-600" />
-                    <span className="text-xs font-medium text-blue-700 bg-blue-200/50 px-2 py-1 rounded-full">
-                      Current
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-2xl font-bold text-blue-900">
-                      {crowdData.reduce((sum, building) => sum + building.currentCount, 0)}
-                    </p>
-                    <p className="text-sm text-blue-700 font-medium">Total Current Count</p>
-                  </div>
-                </div>
-
-                {/* Total Predicted */}
-                <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
-                  <div className="flex items-center justify-between mb-3">
-                    <TrendingUp className="w-6 h-6 text-emerald-600" />
-                    <span className="text-xs font-medium text-emerald-700 bg-emerald-200/50 px-2 py-1 rounded-full">
-                      Forecast
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-2xl font-bold text-emerald-900">
-                      {crowdData.reduce((sum, building) => sum + building.predictedCount, 0)}
-                    </p>
-                    <p className="text-sm text-emerald-700 font-medium">Total Predicted Count</p>
-                  </div>
-                </div>
-
-                {/* Change Indicator */}
-                <div className={`bg-gradient-to-br rounded-xl p-4 border ${
-                  (() => {
-                    const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                    const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                    const change = predicted - current;
-                    return change >= 0 
-                      ? 'from-orange-50 to-orange-100/50 border-orange-200/50' 
-                      : 'from-green-50 to-green-100/50 border-green-200/50';
-                  })()
-                }`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <Activity className={`w-6 h-6 ${
-                      (() => {
-                        const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                        const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                        const change = predicted - current;
-                        return change >= 0 ? 'text-orange-600' : 'text-green-600';
-                      })()
-                    }`} />
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                      (() => {
-                        const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                        const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                        const change = predicted - current;
-                        return change >= 0 
-                          ? 'text-orange-700 bg-orange-200/50' 
-                          : 'text-green-700 bg-green-200/50';
-                      })()
-                    }`}>
-                      {(() => {
-                        const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                        const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                        const change = predicted - current;
-                        return change >= 0 ? 'Increase' : 'Decrease';
-                      })()}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    <p className={`text-2xl font-bold ${
-                      (() => {
-                        const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                        const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                        const change = predicted - current;
-                        return change >= 0 ? 'text-orange-900' : 'text-green-900';
-                      })()
-                    }`}>
-                      {(() => {
-                        const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                        const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                        const change = predicted - current;
-                        return change > 0 ? `+${change}` : change.toString();
-                      })()}
-                    </p>
-                    <p className={`text-sm font-medium ${
-                      (() => {
-                        const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                        const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                        const change = predicted - current;
-                        return change >= 0 ? 'text-orange-700' : 'text-green-700';
-                      })()
-                    }`}>
-                      Expected Change
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Insight Banner */}
-              <div className={`mt-6 p-4 rounded-xl border ${
-                (() => {
-                  const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                  const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                  const change = predicted - current;
-                  return change >= 0 
-                    ? 'bg-amber-50 border-amber-200 text-amber-800' 
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-800';
-                })()
-              }`}>
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  <p className="text-sm font-medium">
-                    {(() => {
-                      const current = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
-                      const predicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
-                      const change = predicted - current;
-                      const percentage = current > 0 ? ((change / current) * 100) : 0;
-                      
-                      if (change >= 0) {
-                        return `Crowd levels are expected to increase by ${Math.abs(change)} people (${percentage.toFixed(1)}%) in the next hour.`;
-                      } else {
-                        return `Crowd levels are expected to decrease by ${Math.abs(change)} people (${Math.abs(percentage).toFixed(1)}%) in the next hour.`;
-                      }
-                    })()}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Building Occupancy Chart Component */}
+        <BuildingOccupancyChart crowdData={crowdData} />
 
         {/* Telegram Bot Integration Section */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 mb-8 overflow-hidden">
@@ -639,7 +303,7 @@ const CrowdManagement: React.FC = () => {
                   </h3>
                   <p className="text-gray-600 leading-relaxed">
                     Stay informed about building occupancy levels with our Telegram bot. 
-                    Get notified every 30 seconds where the occupancy is less than 40% of capacity.
+                    Get notified every 10 seconds where the occupancy is less than 40% of capacity.
                     Also you can check the status of all buildings anytime by sending the <code className="bg-gray-100 px-1 rounded">/status</code> command.
                     Perfect for you to avoid crowded places.
                   </p>
@@ -682,7 +346,7 @@ const CrowdManagement: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2 text-emerald-600">
                   <Clock className="w-4 h-4" />
-                  <span className="text-sm">Updates every 30 seconds</span>
+                  <span className="text-sm">Updates every 10 seconds</span>
                 </div>
               </div>
             </div>

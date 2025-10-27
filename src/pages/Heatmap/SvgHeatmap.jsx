@@ -1,8 +1,7 @@
 // SvgHeatmap.jsx
 import { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
-import BuildingChartsModal from "./BuildingChartsModal.tsx";
-import PredictionConfigPanel from "./PredictionConfigPanel.tsx";
+import BuildingHistoryChart from "./BuildingHistoryChart.tsx";
 
 const SVG_URL = "/campus.svg";
 // If you use a Vite proxy, set API_URL = "/heatmap/map-data"
@@ -88,9 +87,6 @@ export default function SvgHeatmap() {
   useEffect(() => { colorsRef.current = buildingColors; }, [buildingColors]);
 
   const [popup, setPopup] = useState(null);
-  const [showChartsModal, setShowChartsModal] = useState(false);
-  const [selectedBuildingForCharts, setSelectedBuildingForCharts] = useState(null);
-  const [showPredictionConfig, setShowPredictionConfig] = useState(false);
 
   /* -------- Derived lists -------- */
   const list = useMemo(() => {
@@ -236,7 +232,7 @@ export default function SvgHeatmap() {
   }
 
   useEffect(() => {
-    const t = setInterval(fetchLive, 15000);
+    const t = setInterval(fetchLive, 10000);
     fetchLive();
     return () => clearInterval(t);
   }, []);
@@ -429,32 +425,17 @@ export default function SvgHeatmap() {
                     <div className="fill" style={{ width: `var(--p)` }} />
                   </div>
                 )}
-                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
-                  <button 
-                    onClick={() => {
-                      setSelectedBuildingForCharts({
-                        id: popup.id,
-                        name: popup.name
-                      });
-                      setShowChartsModal(true);
-                      setPopup(null);
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: '#3b82f6',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      fontWeight: '500'
-                    }}
-                    onMouseOver={(e) => e.target.style.background = '#2563eb'}
-                    onMouseOut={(e) => e.target.style.background = '#3b82f6'}
-                  >
-                    📊 View Charts & Analytics
-                  </button>
+                
+                {/* Building History Chart */}
+                <div style={{ marginTop: '12px' }}>
+                  <BuildingHistoryChart 
+                    buildingId={popup.id}
+                    buildingName={popup.name}
+                    timeRange={24}
+                    height={180}
+                    showTitle={true}
+                    showTimeRangeSelector={false}
+                  />
                 </div>
               </div>
             </div>
@@ -504,28 +485,6 @@ export default function SvgHeatmap() {
         </aside>
       </main>
 
-      {/* Building Charts Modal */}
-      {showChartsModal && selectedBuildingForCharts && (
-        <BuildingChartsModal
-          buildingId={selectedBuildingForCharts.id}
-          buildingName={selectedBuildingForCharts.name}
-          onClose={() => {
-            setShowChartsModal(false);
-            setSelectedBuildingForCharts(null);
-          }}
-        />
-      )}
-
-      {/* Prediction Configuration Panel */}
-      <PredictionConfigPanel
-        isOpen={showPredictionConfig}
-        onToggle={() => setShowPredictionConfig(!showPredictionConfig)}
-        onConfigChange={(config) => {
-          console.log('Prediction config updated:', config);
-          // You can store this config and pass it to prediction API calls
-        }}
-      />
-
       <style>{`
         :root{ color-scheme: light; }
         *{scrollbar-color: #cbd5e1 #f8fafc;}
@@ -568,7 +527,7 @@ export default function SvgHeatmap() {
         .chip::before{ content:""; width:10px; height:10px; border-radius:50%; background: var(--c); box-shadow:0 0 0 3px color-mix(in srgb, var(--c), transparent 70%); }
 
         /* (legacy popup base kept for compatibility) */
-        .popup{ position:absolute; width:320px; background:#fff; color:#111; border:2px solid; border-radius:12px; box-shadow:var(--shadow); animation:pop .14s ease-out; }
+        .popup{ position:absolute; width:480px; background:#fff; color:#111; border:2px solid; border-radius:12px; box-shadow:var(--shadow); animation:pop .14s ease-out; max-width:90vw; }
         .popup-arrow{ position:absolute; top:-10px; left:28px; width:0; height:0; border-left:10px solid transparent; border-right:10px solid transparent; border-top:10px solid; filter: drop-shadow(0 -2px 4px rgba(0,0,0,.08)); }
         .popup-hd{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:2px solid; background:#fafafa; border-top-left-radius:10px; border-top-right-radius:10px; }
         .pill{ color:#fff; font-weight:800; padding:2px 8px; border-radius:999px; font-size:12px; }
@@ -656,8 +615,8 @@ export default function SvgHeatmap() {
         /* ===== Modern transparent popup (scoped) ===== */
         .popup.glass{
           position:absolute;
-          width: 280px;            /* compact */
-          max-width: 70vw;
+          width: 500px;            /* wider for chart */
+          max-width: 90vw;
           background: rgba(255,255,255,.55);
           border: 1px solid rgba(255,255,255,.65);
           border-radius: 14px;
