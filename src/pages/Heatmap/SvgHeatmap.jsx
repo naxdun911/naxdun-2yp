@@ -66,7 +66,7 @@ const BUILDING_NAMES = {
   B34:"Department of Electrical and Electronic Engineering ",
 };
 
-export default function SvgHeatmap() {
+export default function SvgHeatmap({ onBuildingSelect }) {
   const hostRef = useRef(null);
   const svgRef  = useRef(null);
 
@@ -325,6 +325,11 @@ export default function SvgHeatmap() {
         top:  pos.top,
         where: pos.where,
       });
+
+      // Call the parent callback if provided
+      if (onBuildingSelect) {
+        onBuildingSelect(id, infoNow?.name || id);
+      }
     });
   }
 
@@ -343,6 +348,11 @@ export default function SvgHeatmap() {
       occ: b.occ, status: b.status, color: b.color,
       left: pos.left, top: pos.top, where: pos.where
     });
+
+    // Call the parent callback if provided
+    if (onBuildingSelect) {
+      onBuildingSelect(b.id, b.name);
+    }
   }
 
   /* ================== MAP ZOOM ================== */
