@@ -31,20 +31,8 @@ function getHeatmapColor(current, capacity) {
 // Route to serve map data sourced from current_status (generator output)
 router.get("/map-data", async (req, res) => {
   try {
-    // Pull the latest snapshot by joining static building metadata with the current_status table
-    // The join assumes the generator keeps current_status in sync for every building_id
-    const dbResult = await pool.query(
-      `SELECT b.building_id,
-              b.building_name,
-              b.building_capacity,
-              cs.current_crowd,
-              cs.color,
-              cs.status_timestamp
-         FROM buildings b
-         JOIN current_status cs ON b.building_id = cs.building_id
-        ORDER BY b.building_id`
-    );
     let snapshot = [];
+    let source = "snapshot";
 
     try {
       snapshot = await getCurrentSnapshot();
@@ -52,6 +40,64 @@ router.get("/map-data", async (req, res) => {
       console.error('Snapshot helper failed, falling back to direct query:', snapshotError.message);
     }
 
+    if (snapshot.length === 0) {
+      source = "current_status";
+
+      const dbResult = await pool.query(
+        `SELECT b.building_id,
+                b.building_name,
+                b.building_capacity,
+                cs.current_crowd,
+                cs.color,
+                cs.status_timestamp
+           FROM buildings b
+           JOIN current_status cs ON b.building_id = cs.building_id
+          ORDER BY b.building_id`
+      );
+
+      if (dbResult.rows.length === 0) {
+        return res.status(503).json({
+          success: false,
+          error: "No building occupancy data available. Ensure the data generator is running."
+        });
+      }
+
+      const dataWithPredictions = [];
+
+      for (const row of dbResult.rows) {
+        let predictedCount = row.current_crowd;
+        let predictionConfidence = 'low';
+        let predictionMethod = 'fallback';
+        let predictionHorizonMinutes = PREDICTION_MINUTES_AHEAD;
+
+        try {
+          const historyResult = await pool.query(
+            `SELECT current_crowd, timestamp
+               FROM building_history
+              WHERE building_id = $1
+                AND timestamp >= NOW() - INTERVAL '6 hours'
+              ORDER BY timestamp ASC`,
+            [row.building_id]
+          );
+
+          if (historyResult.rows.length >= 3) {
+            const historicalData = historyResult.rows.map(histRow => ({
+              timestamp: histRow.timestamp,
+              current_count: histRow.current_crowd
+            }));
+
+            const prediction = predictBuildingOccupancy(historicalData, {
+              minutesAhead: PREDICTION_MINUTES_AHEAD,
+              periods: 12,
+              minDataPoints: 3
+            });
+
+            if (prediction && prediction.method !== 'fallback') {
+              predictedCount = prediction.prediction;
+              predictionConfidence = prediction.confidence;
+              predictionMethod = prediction.method;
+              predictionHorizonMinutes = prediction.horizonMinutes ?? PREDICTION_MINUTES_AHEAD;
+            }
     // Build array to hold enriched building data (current state + prediction)
     const dataWithPredictions = [];
 
@@ -100,6 +146,31 @@ router.get("/map-data", async (req, res) => {
             predictionHorizonMinutes = prediction.horizonMinutes ?? PREDICTION_MINUTES_AHEAD;
           }
         }
+
+        const color = row.color || getHeatmapColor(row.current_crowd, row.building_capacity);
+
+        dataWithPredictions.push({
+          building_id: row.building_id,
+          building_name: row.building_name,
+          current_crowd: row.current_crowd,
+          building_capacity: row.building_capacity,
+          color,
+          status_timestamp: row.status_timestamp,
+          predicted_count: predictedCount,
+          prediction_confidence: predictionConfidence,
+          prediction_method: predictionMethod,
+          prediction_horizon_minutes: predictionHorizonMinutes
+        });
+      }
+
+      snapshot = dataWithPredictions;
+    } else {
+      snapshot = snapshot.map(entry => ({
+        ...entry,
+        prediction_horizon_minutes: PREDICTION_MINUTES_AHEAD
+      }));
+    }
+
       } catch (predictionError) {
         // Log but don't crash - fallback defaults will be used for this building
         console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
@@ -129,12 +200,11 @@ router.get("/map-data", async (req, res) => {
     // Send successful response with all buildings enriched with predictions
     res.json({
       success: true,
-      source: "Current Status",
+      source,
       data: snapshot
     });
 
   } catch (error) {
-    // Log error and return 500 status with error message
     console.error("Error fetching building data:", error.message);
     res.status(500).json({
       success: false,
