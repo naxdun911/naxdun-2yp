@@ -46,6 +46,7 @@ console.log('   • GET    /generator/status');
 console.log('   • POST   /generator/start');
 console.log('   • POST   /generator/stop');
 console.log('   • POST   /generator/generate-historical');
+app.use('/reports', require('./routes/reports'));
 
 // Telegram notification routes
 // - Status: health of the Telegram subsystem
