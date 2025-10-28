@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Activity } from 'lucide-react';
 import axios from 'axios';
 
 const HEATMAP_API_URL = import.meta.env.VITE_HEATMAP_API_URL || "http://localhost:3897";
@@ -13,8 +13,10 @@ interface HistoryItem {
 
 interface BuildingHistoryChartProps {
   buildingId: string;
+  buildingName?: string;
   timeRange?: number; // hours
   height?: number;
+  onClose?: () => void;
 }
 
 // Custom tooltip for line chart
@@ -33,9 +35,11 @@ const HistoryTooltip = ({ active, payload }: any) => {
 };
 
 const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({ 
-  buildingId, 
+  buildingId,
+  buildingName,
   timeRange: initialTimeRange = 24,
   height = 200,
+  onClose
 }) => {
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,9 +110,38 @@ const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg p-4 border border-gray-200">
-        <div className="flex items-center justify-center" style={{ height }}>
-          <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
+      <div className="mb-8">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Activity className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {buildingName || buildingId} - Historical Trends
+                  </h2>
+                  <p className="text-gray-600 mt-1">Last 24 hours occupancy pattern</p>
+                </div>
+              </div>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="flex items-center justify-center" style={{ height }}>
+                <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -116,55 +149,113 @@ const BuildingHistoryChart: React.FC<BuildingHistoryChartProps> = ({
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg p-4 border border-gray-200">
-        <div className="flex flex-col items-center justify-center text-red-600" style={{ height }}>
-          <AlertTriangle className="w-6 h-6 mb-2" />
-          <p className="text-xs text-center">{error}</p>
+      <div className="mb-8">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Activity className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {buildingName || buildingId} - Historical Trends
+                  </h2>
+                  <p className="text-gray-600 mt-1">Last 24 hours occupancy pattern</p>
+                </div>
+              </div>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                >
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="p-6">
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="flex flex-col items-center justify-center text-red-600" style={{ height }}>
+                <AlertTriangle className="w-6 h-6 mb-2" />
+                <p className="text-xs text-center">{error}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200">
-      {/* Chart */}
-      <div className="p-3">
-        {historyData.length > 0 ? (
-          <>
-            <ResponsiveContainer width="100%" height={height}>
-              <LineChart data={historyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
-                <XAxis 
-                  dataKey="timestamp" 
-                  fontSize={10}
-                  angle={-45}
-                  textAnchor="end"
-                  height={50}
-                  interval="preserveStartEnd"
-                  tick={{ fill: '#6b7280' }}
-                />
-                <YAxis 
-                  fontSize={10}
-                  tick={{ fill: '#6b7280' }}
-                />
-                <Tooltip content={<HistoryTooltip />} />
-                <Line 
-                  type="monotone" 
-                  dataKey="current_count" 
-                  stroke={getStatusColor()}
-                  strokeWidth={2.5}
-                  dot={false}
-                  activeDot={{ r: 6, strokeWidth: 2 }}
-                  name="Count"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </>
-        ) : (
-          <div className="flex items-center justify-center text-gray-500 text-xs" style={{ height }}>
-            No history data available
+    <div className="mb-8">
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Activity className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {buildingName || buildingId} - Historical Trends
+                </h2>
+                <p className="text-gray-600 mt-1">Last 24 hours occupancy pattern</p>
+              </div>
+            </div>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            )}
           </div>
-        )}
+        </div>
+        <div className="p-6">
+          <div className="bg-white rounded-lg border border-gray-200">
+            {/* Chart */}
+            <div className="p-3">
+              {historyData.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={height}>
+                    <LineChart data={historyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                      <XAxis 
+                        dataKey="timestamp" 
+                        fontSize={10}
+                        angle={-45}
+                        textAnchor="end"
+                        height={50}
+                        interval="preserveStartEnd"
+                        tick={{ fill: '#6b7280' }}
+                      />
+                      <YAxis 
+                        fontSize={10}
+                        tick={{ fill: '#6b7280' }}
+                      />
+                      <Tooltip content={<HistoryTooltip />} />
+                      <Line 
+                        type="monotone" 
+                        dataKey="current_count" 
+                        stroke={getStatusColor()}
+                        strokeWidth={2.5}
+                        dot={false}
+                        activeDot={{ r: 6, strokeWidth: 2 }}
+                        name="Count"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </>
+              ) : (
+                <div className="flex items-center justify-center text-gray-500 text-xs" style={{ height }}>
+                  No history data available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
