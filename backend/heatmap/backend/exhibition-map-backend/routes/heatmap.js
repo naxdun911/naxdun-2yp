@@ -66,8 +66,8 @@ router.get("/map-data", async (req, res) => {
 
       for (const row of dbResult.rows) {
         let predictedCount = row.current_crowd;
-        let predictionConfidence = 'low';
-        let predictionMethod = 'fallback';
+        let predictionConfidence = "low";
+        let predictionMethod = "fallback";
         let predictionHorizonMinutes = PREDICTION_MINUTES_AHEAD;
 
         try {
@@ -92,59 +92,15 @@ router.get("/map-data", async (req, res) => {
               minDataPoints: 3
             });
 
-            if (prediction && prediction.method !== 'fallback') {
+            if (prediction && prediction.method !== "fallback") {
               predictedCount = prediction.prediction;
               predictionConfidence = prediction.confidence;
               predictionMethod = prediction.method;
               predictionHorizonMinutes = prediction.horizonMinutes ?? PREDICTION_MINUTES_AHEAD;
             }
-    // Build array to hold enriched building data (current state + prediction)
-    const dataWithPredictions = [];
-
-    // Process each building individually to compute its 15-minute forecast
-    for (const row of dbResult.rows) {
-      // Initialize prediction variables with safe defaults (fallback to current crowd)
-      // These act as a safety net if EMA prediction fails or lacks sufficient history
-      let predictedCount = row.current_crowd;         // Fallback: assume no change from current
-      let predictionConfidence = 'low';                // Signal that this is a weak/fallback prediction
-      let predictionMethod = 'fallback';               // Indicate no real model ran
-      let predictionHorizonMinutes = PREDICTION_MINUTES_AHEAD;  // Still report 15-min horizon
-
-      try {
-        // Fetch last 6 hours of historical data for this building from building_history
-        // 6-hour window balances having enough data for EMA while staying recent/relevant
-        const historyResult = await pool.query(
-          `SELECT current_crowd, timestamp
-             FROM building_history
-            WHERE building_id = $1
-              AND timestamp >= NOW() - INTERVAL '6 hours'
-            ORDER BY timestamp ASC`,
-          [row.building_id]
-        );
-
-        // Only run EMA if we have at least 3 data points (minimum for reliable smoothing)
-        // Fewer points would make EMA unstable or meaningless
-        if (historyResult.rows.length >= 3) {
-          // Transform DB rows into the format expected by the prediction function
-          const historicalData = historyResult.rows.map(histRow => ({
-            timestamp: histRow.timestamp,
-            current_count: histRow.current_crowd
-          }));
-
-          // Call EMA predictor with 15-min horizon, 12 periods smoothing, min 3 data points
-          const prediction = predictBuildingOccupancy(historicalData, {
-            minutesAhead: PREDICTION_MINUTES_AHEAD,  // Forecast 15 minutes into future
-            periods: 12,                              // EMA smoothing parameter
-            minDataPoints: 3                          // Require at least 3 points
-          });
-
-          // If EMA succeeded (not fallback), replace default values with actual prediction
-          if (prediction && prediction.method !== 'fallback') {
-            predictedCount = prediction.prediction;
-            predictionConfidence = prediction.confidence;
-            predictionMethod = prediction.method;
-            predictionHorizonMinutes = prediction.horizonMinutes ?? PREDICTION_MINUTES_AHEAD;
           }
+        } catch (predictionError) {
+          console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
         }
 
         const color = row.color || getHeatmapColor(row.current_crowd, row.building_capacity);
@@ -171,33 +127,6 @@ router.get("/map-data", async (req, res) => {
       }));
     }
 
-      } catch (predictionError) {
-        // Log but don't crash - fallback defaults will be used for this building
-        console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
-      }
-
-      // Use color from DB if available, otherwise calculate from occupancy ratio
-      // Allows generator to override color logic when needed
-      const color = row.color || getHeatmapColor(row.current_crowd, row.building_capacity);
-
-      // Add this building's complete data (current + prediction) to response array
-      dataWithPredictions.push({
-        building_id: row.building_id,
-        building_name: row.building_name,
-        current_crowd: row.current_crowd,
-        building_capacity: row.building_capacity,
-        color,
-        status_timestamp: row.status_timestamp,
-        predicted_count: predictedCount,              // 15-min forecast or fallback
-        prediction_confidence: predictionConfidence,  // 'low'/'medium'/'high' or 'low' if fallback
-        prediction_method: predictionMethod,          // 'ema' or 'fallback'
-        prediction_horizon_minutes: predictionHorizonMinutes  // Always 15
-      });
-    }
-
-    snapshot = dataWithPredictions;
-
-    // Send successful response with all buildings enriched with predictions
     res.json({
       success: true,
       source,
