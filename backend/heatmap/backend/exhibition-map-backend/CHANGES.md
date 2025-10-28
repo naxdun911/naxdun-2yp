@@ -83,6 +83,11 @@ const result = predictBuildingOccupancy(historicalData, {
 - Validates fallback behavior
 - Run with: `node test-ema-prediction.js`
 
+### 6. **Codebase Clean-up & Documentation**
+- Removed legacy Holt prediction module and unused sample route
+- Deleted obsolete frontend components (`HeatMap.jsx`, `BuildingChartsModal.tsx`, `utils/api.js`)
+- Added dedicated README files explaining backend and frontend heatmap architecture
+
 ## Files Changed
 
 ### Modified Files:
@@ -93,6 +98,15 @@ const result = predictBuildingOccupancy(historicalData, {
 1. `utils/emaPrediction.js` - EMA prediction implementation
 2. `utils/dataGenerator.js` - Data generator service
 3. `test-ema-prediction.js` - Test suite
+4. `backend/heatmap/README.md` - Backend overview and operations guide
+5. `src/pages/Heatmap/README.md` - Frontend heatmap documentation
+
+### Removed Files:
+- `utils/holtPrediction.js`
+- `routes/sample_buildings.js`
+- `src/pages/Heatmap/HeatMap.jsx`
+- `src/pages/Heatmap/BuildingChartsModal.tsx`
+- `src/pages/Heatmap/utils/api.js`
 
 ### Unchanged Files (Still Compatible):
 - `heatmap_db.js` - Database connection (no changes)
@@ -113,7 +127,7 @@ The data generator writes to existing tables:
 
 ### Data Flow:
 ```
-Data Generator (every 5 min)
+Data Generator (every 10 sec)
     ↓
 Generate realistic occupancy data
     ↓
@@ -154,7 +168,7 @@ Response sent to frontend (same format as before)
 ### Data Generator Settings (in code):
 ```javascript
 // Default generation interval
-generationIntervalMinutes: 5
+generationIntervalSeconds: 10
 
 // Time-based multipliers
 - Night (12am-6am): 5%
@@ -319,5 +333,4 @@ Possible improvements:
 - **No sensitive files modified**: `.env`, `package.json` remain unchanged
 - **Database schema unchanged**: All existing tables work as before
 - **Frontend compatible**: No API breaking changes
-- **Old prediction file**: `utils/holtPrediction.js` can be safely removed or kept as reference
 - **Backward compatible**: System can fall back to last known value if prediction fails
