@@ -33,48 +33,6 @@ const CrowdManagement: React.FC = () => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
-  // Map building IDs to real building names (from SvgHeatmap.jsx)
-  const getBuildingName = (buildingId: string, fallbackName?: string): string => {
-    const buildingNames: { [key: string]: string } = {
-      'B1': 'Engineering Carpentry Shop',
-      'B2': 'Engineering Workshop',
-      'B3': 'Building B3',
-      'B4': 'Generator Room',
-      'B5': 'Building B5',
-      'B6': 'Structure Lab',
-      'B7': 'Administrative Building',
-      'B8': 'Canteen',
-      'B9': 'Lecture Room 10/11',
-      'B10': 'Engineering Library',
-      'B11': 'Chemical and Process Engineering',
-      'B12': 'Security Unit',
-      'B13': 'Drawing Office 2',
-      'B14': 'Faculty Canteen',
-      'B15': 'Manufacturing and Industrial Engineering',
-      'B16': 'Professor E.O.E. Perera Theater',
-      'B17': 'Electronic Lab',
-      'B18': 'Washrooms',
-      'B19': 'Electrical and Electronic Workshop',
-      'B20': 'Computer Engineering',
-      'B21': 'Building B21',
-      'B22': 'Environmental Lab',
-      'B23': 'Applied Mechanics Lab',
-      'B24': 'New Mechanics Lab',
-      'B25': 'Building B25',
-      'B26': 'Building B26',
-      'B27': 'Building B27',
-      'B28': 'Materials Lab',
-      'B29': 'Thermodynamics Lab',
-      'B30': 'Fluids Lab',
-      'B31': 'Surveying and Soil Lab',
-      'B32': 'Engineering Mathematics',
-      'B33': 'Drawing Office 1',
-      'B34': 'Electrical and Electronic Engineering'
-    };
-    
-    return buildingNames[buildingId] || fallbackName || `Building ${buildingId}`;
-  };
-
   const fetchData = useCallback(async (): Promise<void> => {
     try {
       setError(null);
@@ -94,16 +52,14 @@ const CrowdManagement: React.FC = () => {
       }
       
       // Transform API data to match our interface
-  const apiData: CrowdData[] = result.data.map((building: ApiBuilding, index: number) => {
-        const colors = ['#ff6b6b', '#4ecdc4', '#ff9f43', '#6c5ce7', '#a29bfe', '#74b9ff', '#fd79a8', '#fdcb6e', '#6c5ce7', '#55a3ff'];
-        
+      const apiData: CrowdData[] = result.data.map((building: ApiBuilding) => {
         return {
           buildingId: building.building_id,
-          buildingName: getBuildingName(building.building_id, building.building_name ?? undefined),
+          buildingName: building.building_name || `Building ${building.building_id}`,
           currentCount: building.current_crowd ?? 0,
           predictedCount: (building.predicted_count ?? building.current_crowd) ?? 0,
           timestamp: building.status_timestamp ?? new Date().toLocaleTimeString(),
-          color: building.color ?? colors[index % colors.length],
+          color: building.color ?? '#cccccc',
           capacity: building.building_capacity ?? 100
         };
       });
@@ -142,7 +98,6 @@ const CrowdManagement: React.FC = () => {
     };
   }, [fetchData, crowdData.length]);
 
-  // Removed search handler
 
   if (loading) {
     return (
@@ -180,9 +135,7 @@ const CrowdManagement: React.FC = () => {
 
         {/* Smart Notifications Component */}
         <SmartNotifications />
-
-        {/* Main Content Layout */}
-        <div className="flex flex-col gap-8"></div>
+        
       </div>
     </div>
   );
