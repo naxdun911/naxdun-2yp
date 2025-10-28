@@ -1,7 +1,6 @@
 // SvgHeatmap.jsx
 import { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
-import BuildingHistoryChart from "./BuildingHistoryChart.tsx";
 
 const SVG_URL = "/campus.svg";
 // If you use a Vite proxy, set API_URL = "/heatmap/map-data"
@@ -425,18 +424,6 @@ export default function SvgHeatmap() {
                     <div className="fill" style={{ width: `var(--p)` }} />
                   </div>
                 )}
-                
-                {/* Building History Chart */}
-                <div style={{ marginTop: '12px' }}>
-                  <BuildingHistoryChart 
-                    buildingId={popup.id}
-                    buildingName={popup.name}
-                    timeRange={24}
-                    height={180}
-                    showTitle={true}
-                    showTimeRangeSelector={false}
-                  />
-                </div>
               </div>
             </div>
           )}
@@ -615,7 +602,7 @@ export default function SvgHeatmap() {
         /* ===== Modern transparent popup (scoped) ===== */
         .popup.glass{
           position:absolute;
-          width: 500px;            /* wider for chart */
+          width: 320px;
           max-width: 90vw;
           background: rgba(255,255,255,.55);
           border: 1px solid rgba(255,255,255,.65);
