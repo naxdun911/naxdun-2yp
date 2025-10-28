@@ -1,10 +1,31 @@
+/**
+ * Heatmap API routes
+ *
+ * Exposes endpoints used by the frontend heatmap to:
+ *  - Fetch the current snapshot of all buildings with a short-term (15 min) prediction
+ *  - Fetch historical series and prediction for a single building
+ *
+ * Implementation details:
+ *  - Live data comes from tables: buildings, current_status, building_history
+ *  - Predictions use Exponential Moving Average (EMA) over the last few hours
+ *  - The forecast horizon is standardized to 15 minutes to align UI/UX
+ */
 const express = require("express");
-const pool = require('../heatmap_db'); // pg Pool instance
+const pool = require('../heatmap_db'); // PostgreSQL Pool instance
 const { predictBuildingOccupancy } = require('../utils/emaPrediction');
 
 const router = express.Router();
+// Global forecast horizon (in minutes) used by all endpoints
+const PREDICTION_MINUTES_AHEAD = 15;
 
-// Function to calculate heatmap color
+/**
+ * Derive a heatmap color from current count and capacity.
+ * Colors loosely map to occupancy thresholds (20/50/80%).
+ * Falls back to gray for invalid capacity values.
+ * @param {number} current
+ * @param {number} capacity
+ * @returns {string} hex color string
+ */
 function getHeatmapColor(current, capacity) {
   if (capacity <= 0) return "#cccccc"; // gray for invalid capacity
   const ratio = current / capacity;
@@ -15,7 +36,20 @@ function getHeatmapColor(current, capacity) {
   //if (ratio < 0.9) return "#ef4444"; // orange
   return "#ef4444"; // red
 }
-// Route to serve map data sourced from current_status (generator output)
+/**
+ * GET /heatmap/map-data
+ *
+ * Returns a portfolio snapshot sourced from current_status joined with buildings.
+ * For each building it also computes a 15-minute EMA-based prediction using up to
+ * the last 6 hours of history. When prediction fails or data is insufficient,
+ * it falls back to the current observed count.
+ *
+ * Response item fields include:
+ *  - building_id, building_name, building_capacity
+ *  - current_crowd, color, status_timestamp
+ *  - predicted_count, prediction_confidence, prediction_method
+ *  - prediction_horizon_minutes (always 15 unless overridden in code)
+ */
 router.get("/map-data", async (req, res) => {
   try {
     const dbResult = await pool.query(
@@ -40,11 +74,14 @@ router.get("/map-data", async (req, res) => {
     const dataWithPredictions = [];
 
     for (const row of dbResult.rows) {
+      // Default prediction mirrors current value until a model result is available
       let predictedCount = row.current_crowd;
       let predictionConfidence = 'low';
       let predictionMethod = 'fallback';
+      let predictionHorizonMinutes = PREDICTION_MINUTES_AHEAD;
 
       try {
+        // Pull a recent window of history for the building to feed EMA
         const historyResult = await pool.query(
           `SELECT current_crowd, timestamp
              FROM building_history
@@ -54,6 +91,7 @@ router.get("/map-data", async (req, res) => {
           [row.building_id]
         );
 
+        // Require a minimum number of points to run EMA reliably
         if (historyResult.rows.length >= 3) {
           const historicalData = historyResult.rows.map(histRow => ({
             timestamp: histRow.timestamp,
@@ -61,7 +99,7 @@ router.get("/map-data", async (req, res) => {
           }));
 
           const prediction = predictBuildingOccupancy(historicalData, {
-            hoursAhead: 1,
+            minutesAhead: PREDICTION_MINUTES_AHEAD,
             periods: 12,
             minDataPoints: 3
           });
@@ -70,12 +108,14 @@ router.get("/map-data", async (req, res) => {
             predictedCount = prediction.prediction;
             predictionConfidence = prediction.confidence;
             predictionMethod = prediction.method;
+            predictionHorizonMinutes = prediction.horizonMinutes ?? PREDICTION_MINUTES_AHEAD;
           }
         }
       } catch (predictionError) {
         console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
       }
 
+      // Prefer color coming from current_status; otherwise derive from occupancy ratio
       const color = row.color || getHeatmapColor(row.current_crowd, row.building_capacity);
 
       dataWithPredictions.push({
@@ -87,7 +127,8 @@ router.get("/map-data", async (req, res) => {
         status_timestamp: row.status_timestamp,
         predicted_count: predictedCount,
         prediction_confidence: predictionConfidence,
-        prediction_method: predictionMethod
+        prediction_method: predictionMethod,
+        prediction_horizon_minutes: predictionHorizonMinutes
       });
     }
 
@@ -106,7 +147,13 @@ router.get("/map-data", async (req, res) => {
   }
 });
 
-// Route to get historical data and predictions for a specific building
+/**
+ * GET /heatmap/building/:buildingId/history
+ *
+ * Returns metadata, current status, time-series history, and a 15-minute
+ * EMA prediction for a single building. The history window can be adjusted
+ * via the `hours` query parameter (defaults to 24).
+ */
 router.get("/building/:buildingId/history", async (req, res) => {
   try {
     const { buildingId } = req.params;
@@ -133,7 +180,7 @@ router.get("/building/:buildingId/history", async (req, res) => {
       [buildingId]
     );
     
-    // Get historical data
+  // Get historical data for the requested window
     const historyResult = await pool.query(
       `SELECT current_crowd, timestamp 
        FROM building_history 
@@ -143,7 +190,7 @@ router.get("/building/:buildingId/history", async (req, res) => {
       [buildingId]
     );
     
-    // Format historical data for prediction
+    // Format historical data for prediction and add an occupancy percent for charts
     const historicalData = historyResult.rows.map(row => ({
       timestamp: row.timestamp,
       current_count: row.current_crowd,
@@ -152,12 +199,12 @@ router.get("/building/:buildingId/history", async (req, res) => {
         : 0
     }));
     
-    // Generate predictions using EMA method (1 hour ahead)
+    // Generate predictions using EMA method (15 minutes ahead)
     let prediction = null;
     if (historicalData.length > 0) {
       try {
         prediction = predictBuildingOccupancy(historicalData, {
-          hoursAhead: 1,
+          minutesAhead: PREDICTION_MINUTES_AHEAD,
           periods: 12,
           minDataPoints: 3
         });
@@ -166,7 +213,7 @@ router.get("/building/:buildingId/history", async (req, res) => {
       }
     }
     
-    // Get current data
+  // Current data snapshot (falls back to zero/neutral color when absent)
     const currentCount = currentResult.rows.length > 0 ? currentResult.rows[0].current_crowd : 0;
     const currentColor = currentResult.rows.length > 0 ? currentResult.rows[0].color : '#cccccc';
     const lastUpdated = currentResult.rows.length > 0 ? currentResult.rows[0].status_timestamp : null;
@@ -183,6 +230,7 @@ router.get("/building/:buildingId/history", async (req, res) => {
         predictedCount: prediction ? prediction.prediction : currentCount,
         predictionConfidence: prediction ? prediction.confidence : 'low',
         predictionMethod: prediction ? prediction.method : 'fallback',
+        predictionHorizonMinutes: prediction ? (prediction.horizonMinutes ?? PREDICTION_MINUTES_AHEAD) : PREDICTION_MINUTES_AHEAD,
         history: historicalData,
         prediction: prediction
       }

@@ -11,13 +11,16 @@
  * For prediction, we use the trend between current and previous EMA values.
  */
 
+const DEFAULT_PREDICTION_MINUTES = 15;
+const DEFAULT_PREDICTION_HOURS = DEFAULT_PREDICTION_MINUTES / 60;
+
 class ExponentialMovingAverage {
   constructor(alpha = null, periods = 12) {
-    // If alpha not provided, calculate from periods: α = 2/(N+1)
+    // Use caller supplied alpha if available; otherwise derive it from the number of periods.
     this.alpha = alpha !== null ? alpha : 2 / (periods + 1);
     this.periods = periods;
-    this.ema = null;
-    this.previousEma = null;
+    this.ema = null;          // Current EMA value after the most recent update
+    this.previousEma = null;  // EMA value from the prior step (needed for trend detection)
     this.initialized = false;
     this.history = [];
   }
@@ -31,13 +34,13 @@ class ExponentialMovingAverage {
       throw new Error('Need at least 1 data point to initialize EMA');
     }
 
-    // Start with Simple Moving Average of first N points (or all if less than N)
+  // Seed EMA with the simple average of the first N observations (EMA needs a starting point).
     const initialPoints = data.slice(0, Math.min(this.periods, data.length));
     const sum = initialPoints.reduce((acc, d) => acc + d.value, 0);
     this.ema = sum / initialPoints.length;
     this.previousEma = this.ema;
     
-    // Calculate EMA for remaining points
+    // Fold the rest of the series into the running EMA.
     for (let i = initialPoints.length; i < data.length; i++) {
       this.update(data[i].value);
     }
@@ -59,24 +62,24 @@ class ExponentialMovingAverage {
     }
 
     this.previousEma = this.ema;
-    // EMA = α * Value + (1 - α) * Previous_EMA
+    // Classic EMA recurrence; alpha governs how aggressively new values move the series.
     this.ema = this.alpha * value + (1 - this.alpha) * this.previousEma;
   }
 
   /**
    * Calculate trend and make prediction
-   * @param {number} hoursAhead - Number of hours to predict ahead (default 1)
+  * @param {number} hoursAhead - Number of hours to predict ahead (default 0.25 → 15 minutes)
    * @returns {number} Predicted value
    */
-  predict(hoursAhead = 1) {
+  predict(hoursAhead = DEFAULT_PREDICTION_HOURS) {
     if (!this.initialized) {
       throw new Error('EMA must be initialized before prediction');
     }
 
-    // Calculate trend from current and previous EMA
+  // Trend is the single-step delta between the current and prior EMA values.
     const trend = this.ema - this.previousEma;
     
-    // Prediction: Current EMA + (trend * hours ahead)
+  // Forecast assumes the same trend persists for the requested horizon.
     const prediction = this.ema + (trend * hoursAhead);
     
     // Ensure non-negative values
@@ -99,7 +102,7 @@ class ExponentialMovingAverage {
   calculateConfidence(data) {
     if (data.length < 3) return 'low';
 
-    // Calculate coefficient of variation (CV = std_dev / mean)
+  // Coefficient of variation acts as a quick stability heuristic.
     const values = data.map(d => d.value);
     const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
     
@@ -163,11 +166,19 @@ class ExponentialMovingAverage {
  */
 function predictBuildingOccupancy(historicalData, options = {}) {
   const {
-    hoursAhead = 1,
+    hoursAhead: hoursAheadOption,
+    minutesAhead,
     periods = 12,
     alpha = null,
     minDataPoints = 3
   } = options;
+
+  const parsedMinutesAhead = minutesAhead === undefined ? NaN : Number(minutesAhead);
+  const parsedHoursAhead = hoursAheadOption === undefined ? NaN : Number(hoursAheadOption);
+
+  const resolvedHoursAhead = Number.isFinite(parsedMinutesAhead)
+    ? parsedMinutesAhead / 60
+    : (Number.isFinite(parsedHoursAhead) ? parsedHoursAhead : DEFAULT_PREDICTION_HOURS);
 
   // Convert data format
   const data = historicalData.map(item => ({
@@ -190,25 +201,25 @@ function predictBuildingOccupancy(historicalData, options = {}) {
 
   try {
     // Initialize EMA model
-    const emaModel = new ExponentialMovingAverage(alpha, periods);
+  const emaModel = new ExponentialMovingAverage(alpha, periods);
     emaModel.initialize(data);
 
     // Make prediction
-    const prediction = emaModel.predict(hoursAhead);
+  const prediction = emaModel.predict(resolvedHoursAhead);
     const currentEMA = emaModel.getCurrentEMA();
     const trend = currentEMA - emaModel.previousEma;
     
     // Calculate confidence
     const confidence = emaModel.calculateConfidence(data);
 
-    // Calculate metrics by doing one-step-ahead predictions on historical data
+  // Estimate error metrics using a rolling one-step-ahead simulation so we know how EMA behaves on this set.
     const actual = [];
     const predicted = [];
     
     if (data.length > periods + 1) {
       for (let i = periods; i < data.length - 1; i++) {
         const trainData = data.slice(0, i + 1);
-        const testModel = new ExponentialMovingAverage(alpha, periods);
+  const testModel = new ExponentialMovingAverage(alpha, periods);
         testModel.initialize(trainData);
         predicted.push(testModel.predict(1));
         actual.push(data[i + 1].value);
@@ -228,7 +239,8 @@ function predictBuildingOccupancy(historicalData, options = {}) {
       alpha: emaModel.alpha,
       periods: emaModel.periods,
       metrics,
-      dataPoints: data.length
+      dataPoints: data.length,
+      horizonMinutes: Math.round(resolvedHoursAhead * 60)
     };
 
   } catch (error) {
@@ -243,7 +255,8 @@ function predictBuildingOccupancy(historicalData, options = {}) {
       ema: lastValue,
       trend: 0,
       metrics: null,
-      error: error.message
+      error: error.message,
+      horizonMinutes: Math.round(resolvedHoursAhead * 60)
     };
   }
 }

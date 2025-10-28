@@ -7,7 +7,7 @@ This document describes the changes made to replace Holt's Linear prediction wit
 
 ### 1. **New EMA Prediction Module** (`utils/emaPrediction.js`)
 - Replaced Holt's Linear Trend prediction with Exponential Moving Average
-- Predicts building occupancy **1 hour ahead** based on historical data
+- Predicts building occupancy **15 minutes ahead** based on historical data
 - More responsive to recent changes in occupancy patterns
 - Simpler and more efficient than Holt's Linear method
 
@@ -22,7 +22,7 @@ This document describes the changes made to replace Holt's Linear prediction wit
 const { predictBuildingOccupancy } = require('./utils/emaPrediction');
 
 const result = predictBuildingOccupancy(historicalData, {
-  hoursAhead: 1,      // Predict 1 hour ahead
+  minutesAhead: 15,    // Predict 15 minutes ahead
   periods: 12,         // Use 12 periods for smoothing
   minDataPoints: 3     // Minimum data required
 });
@@ -59,6 +59,7 @@ const result = predictBuildingOccupancy(historicalData, {
 - Updated all prediction calls to use EMA method
 - Changed prediction window from 24 hours to 6 hours (more relevant recent data)
 - Added `prediction_method` field to API responses
+- Added `prediction_horizon_minutes` field to surface the 15-minute forecast window
 - **No changes to API endpoints or response structure** (frontend compatible)
 
 **API Endpoints Remain Unchanged:**
@@ -148,20 +149,19 @@ Response sent to frontend (same format as before)
 1. Fetch last 6 hours of historical data for building
 2. Initialize EMA model with historical data
 3. Calculate current EMA and trend
-4. Predict occupancy 1 hour ahead
+4. Predict occupancy 15 minutes ahead
 5. Calculate confidence based on data variability
 6. Return prediction with current data
 
 ## Frontend Compatibility
 
-✅ **No frontend changes required!**
-
-- All API endpoints remain the same
-- Response format is identical
-- Added fields are backward compatible:
-  - `prediction_method` (new field)
-  - `predicted_count` (existing field, improved calculation)
-  - `prediction_confidence` (existing field)
+- Crowd management dashboards now surface the 15-minute forecast horizon across legends, tooltips, and summary cards.
+- All API endpoints remain the same.
+- Response format stays backward compatible with enriched metadata:
+  - `predicted_count`
+  - `prediction_method`
+  - `prediction_confidence`
+  - `prediction_horizon_minutes`
 
 ## Configuration
 
@@ -186,9 +186,9 @@ generationIntervalSeconds: 10
 ```javascript
 // Default configuration
 {
-  hoursAhead: 1,        // Predict 1 hour ahead
-  periods: 12,          // 12 periods for smoothing
-  minDataPoints: 3      // Minimum 3 data points required
+  minutesAhead: 15,      // Predict 15 minutes ahead
+  periods: 12,           // 12 periods for smoothing
+  minDataPoints: 3       // Minimum 3 data points required
 }
 ```
 

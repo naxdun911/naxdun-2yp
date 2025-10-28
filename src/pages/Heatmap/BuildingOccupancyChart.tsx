@@ -10,13 +10,23 @@ interface CrowdData {
   timestamp: string;
   color: string;
   capacity: number;
+  predictionHorizonMinutes?: number;
 }
 
 interface BuildingOccupancyChartProps {
   crowdData: CrowdData[];
 }
 
+const DEFAULT_PREDICTION_HORIZON_MINUTES = 15;
+
 const BuildingOccupancyChart: React.FC<BuildingOccupancyChartProps> = ({ crowdData }) => {
+  const predictionHorizonMinutes = (() => {
+    const candidate = crowdData.find(building => building.predictionHorizonMinutes !== undefined && building.predictionHorizonMinutes !== null);
+    if (!candidate) return DEFAULT_PREDICTION_HORIZON_MINUTES;
+    const minutes = Number(candidate.predictionHorizonMinutes);
+    return Number.isFinite(minutes) ? minutes : DEFAULT_PREDICTION_HORIZON_MINUTES;
+  })();
+
   // Calculate totals and statistics
   const totalCurrent = crowdData.reduce((sum, building) => sum + building.currentCount, 0);
   const totalPredicted = crowdData.reduce((sum, building) => sum + building.predictedCount, 0);
@@ -57,7 +67,7 @@ const BuildingOccupancyChart: React.FC<BuildingOccupancyChartProps> = ({ crowdDa
           <div className="flex items-center gap-3">
             <div className="w-4 h-4 bg-green-500 rounded-full shadow-sm"></div>
             <span className="font-medium text-gray-700">Predicted Count</span>
-            <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Next Hour</div>
+            <div className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Next {predictionHorizonMinutes} Minutes</div>
           </div>
         </div>
         
@@ -105,7 +115,7 @@ const BuildingOccupancyChart: React.FC<BuildingOccupancyChartProps> = ({ crowdDa
                   <Tooltip 
                     formatter={(value, name) => {
                       if (name === 'currentCount') return [value, 'Current Count'];
-                      if (name === 'predictedCount') return [value, 'Predicted Count (Next Hour)'];
+                      if (name === 'predictedCount') return [value, `Predicted Count (Next ${predictionHorizonMinutes} Minutes)`];
                       return [value, name];
                     }}
                     labelFormatter={(label) => `Building: ${label}`}
@@ -191,7 +201,7 @@ const BuildingOccupancyChart: React.FC<BuildingOccupancyChartProps> = ({ crowdDa
               </div>
               <div className="space-y-1">
                 <p className="text-2xl font-bold text-emerald-900">{totalPredicted}</p>
-                <p className="text-sm text-emerald-700 font-medium">Total Predicted Count</p>
+                <p className="text-sm text-emerald-700 font-medium">Total Predicted Count (Next {predictionHorizonMinutes} min)</p>
               </div>
             </div>
 
@@ -232,8 +242,8 @@ const BuildingOccupancyChart: React.FC<BuildingOccupancyChartProps> = ({ crowdDa
               <AlertCircle className="w-5 h-5 flex-shrink-0" />
               <p className="text-sm font-medium">
                 {totalChange >= 0 
-                  ? `Crowd levels are expected to increase by ${Math.abs(totalChange)} people (${changePercentage.toFixed(1)}%) in the next hour.`
-                  : `Crowd levels are expected to decrease by ${Math.abs(totalChange)} people (${Math.abs(changePercentage).toFixed(1)}%) in the next hour.`
+                  ? `Crowd levels are expected to increase by ${Math.abs(totalChange)} people (${changePercentage.toFixed(1)}%) in the next ${predictionHorizonMinutes} minutes.`
+                  : `Crowd levels are expected to decrease by ${Math.abs(totalChange)} people (${Math.abs(changePercentage).toFixed(1)}%) in the next ${predictionHorizonMinutes} minutes.`
                 }
               </p>
             </div>
