@@ -5,6 +5,8 @@
 
 const { predictBuildingOccupancy, ExponentialMovingAverage } = require('./utils/emaPrediction');
 
+const PREDICTION_MINUTES_AHEAD = 15;
+
 console.log('=================================');
 console.log('Testing EMA Prediction Module');
 console.log('=================================\n');
@@ -23,9 +25,9 @@ const testData = [
 ];
 
 ema.initialize(testData);
-const prediction = ema.predict(1);
+const prediction = ema.predict(PREDICTION_MINUTES_AHEAD / 60);
 console.log(`Current EMA: ${ema.getCurrentEMA().toFixed(2)}`);
-console.log(`Prediction (1 hour ahead): ${prediction}`);
+console.log(`Prediction (${PREDICTION_MINUTES_AHEAD} minutes ahead): ${prediction}`);
 console.log('✅ Test 1 Passed\n');
 
 // Test 2: Predict Building Occupancy
@@ -43,7 +45,7 @@ const historicalData = [
 ];
 
 const result = predictBuildingOccupancy(historicalData, {
-  hoursAhead: 1,
+  minutesAhead: PREDICTION_MINUTES_AHEAD,
   periods: 5,
   minDataPoints: 3
 });
@@ -55,6 +57,7 @@ console.log(`  - Method: ${result.method}`);
 console.log(`  - Current EMA: ${result.ema}`);
 console.log(`  - Trend: ${result.trend}`);
 console.log(`  - Alpha: ${result.alpha}`);
+console.log(`  - Horizon: ${result.horizonMinutes} minutes`);
 if (result.metrics) {
   console.log(`  - Metrics:`);
   console.log(`    - MAE: ${result.metrics.mae}`);
@@ -71,7 +74,7 @@ const sparseData = [
 ];
 
 const fallbackResult = predictBuildingOccupancy(sparseData, {
-  hoursAhead: 1,
+  minutesAhead: PREDICTION_MINUTES_AHEAD,
   minDataPoints: 3
 });
 
@@ -90,7 +93,7 @@ const increasingData = Array.from({ length: 15 }, (_, i) => ({
 }));
 
 const increasingResult = predictBuildingOccupancy(increasingData, {
-  hoursAhead: 1,
+  minutesAhead: PREDICTION_MINUTES_AHEAD,
   periods: 10
 });
 
@@ -99,6 +102,7 @@ console.log(`  - Current Average: ${increasingData[increasingData.length - 1].cu
 console.log(`  - Predicted Count: ${increasingResult.prediction}`);
 console.log(`  - Trend: ${increasingResult.trend > 0 ? '📈 Increasing' : '📉 Decreasing'}`);
 console.log(`  - Confidence: ${increasingResult.confidence}`);
+console.log(`  - Horizon: ${increasingResult.horizonMinutes} minutes`);
 console.log('✅ Test 4 Passed\n');
 
 // Test 5: Decreasing Trend
@@ -110,7 +114,7 @@ const decreasingData = Array.from({ length: 15 }, (_, i) => ({
 }));
 
 const decreasingResult = predictBuildingOccupancy(decreasingData, {
-  hoursAhead: 1,
+  minutesAhead: PREDICTION_MINUTES_AHEAD,
   periods: 10
 });
 
@@ -119,6 +123,7 @@ console.log(`  - Current Average: ${decreasingData[decreasingData.length - 1].cu
 console.log(`  - Predicted Count: ${decreasingResult.prediction}`);
 console.log(`  - Trend: ${decreasingResult.trend > 0 ? '📈 Increasing' : '📉 Decreasing'}`);
 console.log(`  - Confidence: ${decreasingResult.confidence}`);
+console.log(`  - Horizon: ${decreasingResult.horizonMinutes} minutes`);
 console.log('✅ Test 5 Passed\n');
 
 // Test 6: Stable Pattern
@@ -130,7 +135,7 @@ const stableData = Array.from({ length: 20 }, (_, i) => ({
 }));
 
 const stableResult = predictBuildingOccupancy(stableData, {
-  hoursAhead: 1,
+  minutesAhead: PREDICTION_MINUTES_AHEAD,
   periods: 12
 });
 
@@ -139,6 +144,7 @@ console.log(`  - Current Average: ${stableData[stableData.length - 1].current_co
 console.log(`  - Predicted Count: ${stableResult.prediction}`);
 console.log(`  - Trend: ${Math.abs(stableResult.trend) < 1 ? '➡️ Stable' : stableResult.trend > 0 ? '📈 Increasing' : '📉 Decreasing'}`);
 console.log(`  - Confidence: ${stableResult.confidence}`);
+console.log(`  - Horizon: ${stableResult.horizonMinutes} minutes`);
 console.log('✅ Test 6 Passed\n');
 
 console.log('=================================');

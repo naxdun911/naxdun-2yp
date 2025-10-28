@@ -1,14 +1,31 @@
+/**
+ * Heatmap Service Entrypoint
+ *
+ * Boots an Express server exposing:
+ *  - Heatmap routes (/heatmap) for live map data and history with 15-min predictions
+ *  - Telegram notification endpoints (/telegram/*)
+ *  - Data generator control endpoints (/generator/*)
+ *
+ * Responsibilities:
+ *  - Load environment variables
+ *  - Register common middleware
+ *  - Mount feature routers
+ *  - Initialize optional Telegram service
+ *  - Initialize, backfill, and start the data generator loop
+ */
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config(); // Load environment variables
+require('dotenv').config(); // Load environment variables from .env
 const app = express();
 
-// Import services
+// Import services (feature modules)
 const telegramNotificationService = require('./telegram_notifications');
 const dataGenerator = require('./utils/dataGenerator');
 
 // ===============================
 // MIDDLEWARE
+// - CORS: allow frontend to call the API
+// - JSON body parsing: read JSON request payloads
 // ===============================
 app.use(cors());
 app.use(express.json());
@@ -19,8 +36,22 @@ app.use(express.json());
 
 // Register each feature router
 app.use('/heatmap', require('./routes/heatmap'));
+console.log('🔌 Routes mounted:');
+console.log('   • GET    /heatmap/map-data');
+console.log('   • GET    /heatmap/building/:buildingId/history');
+console.log('   • GET    /telegram/status');
+console.log('   • POST   /telegram/test');
+console.log('   • GET    /telegram/buildings');
+console.log('   • GET    /generator/status');
+console.log('   • POST   /generator/start');
+console.log('   • POST   /generator/stop');
+console.log('   • POST   /generator/generate-historical');
+app.use('/reports', require('./routes/reports'));
 
 // Telegram notification routes
+// - Status: health of the Telegram subsystem
+// - Test: send a one-off test message to verify configuration
+// - Buildings: list low-occupancy buildings subject to notification criteria
 app.get('/telegram/status', (req, res) => {
     try {
         const status = telegramNotificationService.getStatus();
@@ -49,6 +80,7 @@ app.get('/telegram/buildings', async (req, res) => {
 });
 
 // Data Generator routes
+// - These endpoints control the synthetic data loop used in development/demo
 app.get('/generator/status', (req, res) => {
     try {
         const status = dataGenerator.getStatus();
@@ -67,19 +99,23 @@ app.post('/generator/start', async (req, res) => {
                 ? Number(intervalMinutes) * 60
                 : 10;
 
+        console.log(`🟢 /generator/start requested → intervalSeconds=${interval} (${interval/60} min)`);
         await dataGenerator.start({ intervalSeconds: interval });
         const suffix = interval === 1 ? 'second' : 'seconds';
         res.json({ success: true, message: `Data generator started with ${interval} ${suffix}` });
     } catch (error) {
+        console.error('❌ /generator/start failed:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 app.post('/generator/stop', (req, res) => {
     try {
+        console.log('🛑 /generator/stop requested');
         dataGenerator.stop();
         res.json({ success: true, message: 'Data generator stopped' });
     } catch (error) {
+        console.error('❌ /generator/stop failed:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -94,9 +130,11 @@ app.post('/generator/generate-historical', async (req, res) => {
             : intervalMinutesInput > 0
                 ? intervalMinutesInput * 60
                 : 10;
+        console.log(`📚 /generator/generate-historical → hoursBack=${hoursBack}, intervalSeconds=${intervalSeconds}`);
         await dataGenerator.generateHistoricalData(hoursBack, intervalSeconds);
         res.json({ success: true, message: `Generated ${hoursBack} hour(s) of historical data at ${intervalSeconds}s intervals` });
     } catch (error) {
+        console.error('❌ /generator/generate-historical failed:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -112,7 +150,12 @@ app.get('/', (req, res) => res.json({
 const PORT = process.env.PORT || process.env.BACKEND_HEATMAP_SERVICE_PORT || 3897;
 
 app.listen(PORT, async () => {
-    console.log(`API running on port ${PORT}`);
+    console.log(`🚀 API running on port ${PORT}`);
+    console.log('🌱 Environment loaded:', {
+        PORT,
+        BACKEND_HEATMAP_SERVICE_PORT: process.env.BACKEND_HEATMAP_SERVICE_PORT,
+        TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN ? '*** set ***' : 'not set'
+    });
     
     // Initialize Telegram Notification Service
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -132,15 +175,18 @@ app.listen(PORT, async () => {
     // Initialize and Start Data Generator
     try {
         await dataGenerator.initialize();
+        console.log('🧠 Data generator initialized');
         
         // Check if we need to generate historical data (check if history table is empty)
         const pool = require('./heatmap_db');
         const historyCheck = await pool.query('SELECT COUNT(*) as count FROM building_history');
         const historyCount = parseInt(historyCheck.rows[0].count);
+        console.log(`🗃️ building_history row count: ${historyCount}`);
         
         if (historyCount < 100) {
             console.log('📊 Generating initial historical data (past 1 hour)...');
             await dataGenerator.generateHistoricalData(1, 10);
+            console.log('✅ Initial historical backfill done');
         }
         
         // Start the data generator (generate data every 10 seconds)
