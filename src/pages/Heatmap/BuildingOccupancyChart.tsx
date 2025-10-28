@@ -98,12 +98,31 @@ const BuildingOccupancyChart: React.FC<BuildingOccupancyChartProps> = ({ crowdDa
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.6} />
                   <XAxis 
                     dataKey="buildingName" 
-                    angle={-45}
-                    textAnchor="end"
+                    angle={0}
+                    textAnchor="middle"
                     height={90}
                     interval={0}
                     fontSize={12}
-                    tick={{ fill: '#64748b', fontWeight: '500' }}
+                    tick={(props) => {
+                      const { x, y, payload } = props;
+                      const index = payload.index;
+                      // Alternate between two rows to prevent overlap
+                      const yOffset = index % 2 === 0 ? 10 : 30;
+                      return (
+                        <g transform={`translate(${x},${y})`}>
+                          <text
+                            x={0}
+                            y={yOffset}
+                            textAnchor="middle"
+                            fill="#64748b"
+                            fontSize={12}
+                            fontWeight={500}
+                          >
+                            {payload.value}
+                          </text>
+                        </g>
+                      );
+                    }}
                     axisLine={{ stroke: '#cbd5e1', strokeWidth: 1 }}
                   />
                   <YAxis 
@@ -156,13 +175,7 @@ const BuildingOccupancyChart: React.FC<BuildingOccupancyChartProps> = ({ crowdDa
           </div>
         </div>
         
-        {/* Scroll indicator */}
-        {crowdData.length > 6 && (
-          <div className="text-xs text-gray-500 mt-2 text-center">
-            ← Scroll horizontally to view all buildings →
-          </div>
-        )}
-        
+              
         {/* Summary Statistics */}
         <div className="mt-6 bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-100">
           <div className="flex items-center justify-between mb-6">
