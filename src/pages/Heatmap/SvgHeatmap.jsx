@@ -1,7 +1,6 @@
 // SvgHeatmap.jsx
 import { useEffect, useRef, useState, useMemo } from "react";
 import axios from "axios";
-import BuildingHistoryChart from "./BuildingHistoryChart.tsx";
 
 const SVG_URL = "/campus.svg";
 // If you use a Vite proxy, set API_URL = "/heatmap/map-data"
@@ -67,7 +66,7 @@ const BUILDING_NAMES = {
   B34:"Department of Electrical and Electronic Engineering ",
 };
 
-export default function SvgHeatmap() {
+export default function SvgHeatmap({ onBuildingSelect }) {
   const hostRef = useRef(null);
   const svgRef  = useRef(null);
 
@@ -326,6 +325,11 @@ export default function SvgHeatmap() {
         top:  pos.top,
         where: pos.where,
       });
+
+      // Call the parent callback if provided
+      if (onBuildingSelect) {
+        onBuildingSelect(id, infoNow?.name || id);
+      }
     });
   }
 
@@ -344,6 +348,11 @@ export default function SvgHeatmap() {
       occ: b.occ, status: b.status, color: b.color,
       left: pos.left, top: pos.top, where: pos.where
     });
+
+    // Call the parent callback if provided
+    if (onBuildingSelect) {
+      onBuildingSelect(b.id, b.name);
+    }
   }
 
   /* ================== MAP ZOOM ================== */
@@ -425,18 +434,6 @@ export default function SvgHeatmap() {
                     <div className="fill" style={{ width: `var(--p)` }} />
                   </div>
                 )}
-                
-                {/* Building History Chart */}
-                <div style={{ marginTop: '12px' }}>
-                  <BuildingHistoryChart 
-                    buildingId={popup.id}
-                    buildingName={popup.name}
-                    timeRange={24}
-                    height={180}
-                    showTitle={true}
-                    showTimeRangeSelector={false}
-                  />
-                </div>
               </div>
             </div>
           )}
@@ -615,7 +612,7 @@ export default function SvgHeatmap() {
         /* ===== Modern transparent popup (scoped) ===== */
         .popup.glass{
           position:absolute;
-          width: 500px;            /* wider for chart */
+          width: 320px;
           max-width: 90vw;
           background: rgba(255,255,255,.55);
           border: 1px solid rgba(255,255,255,.65);
