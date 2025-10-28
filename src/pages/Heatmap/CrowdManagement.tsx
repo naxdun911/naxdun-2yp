@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import SvgHeatmap from "./SvgHeatmap.jsx";
 import BuildingOccupancyChart from "./BuildingOccupancyChart.tsx";
+import BuildingHistoryChart from "./BuildingHistoryChart.tsx";
 import SmartNotifications from "./SmartNotifications.tsx";
 import PageHeader from "./PageHeader.tsx";
 import ReportDownload from "./ReportDownload.tsx";
@@ -38,9 +39,17 @@ const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+  const [selectedBuildingName, setSelectedBuildingName] = useState<string>("");
   
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
+
+  // Callback for when a building is clicked on the heatmap
+  const handleBuildingSelect = (buildingId: string, buildingName: string) => {
+    setSelectedBuildingId(buildingId);
+    setSelectedBuildingName(buildingName);
+  };
 
   const fetchData = useCallback(async (): Promise<void> => {
     try {
@@ -135,14 +144,28 @@ const CrowdManagement: React.FC = () => {
 
         {/* Heat Map Section */}
         <div className="mb-8">
-          <SvgHeatmap />
+          <SvgHeatmap onBuildingSelect={handleBuildingSelect} />
         </div>
 
-        {/* Report Download Section */}
-        <ReportDownload apiUrl={heatmapApiUrl} />
+        {/* Building History Chart - Appears when a building is clicked */}
+        {selectedBuildingId && (
+          <BuildingHistoryChart 
+            buildingId={selectedBuildingId}
+            buildingName={selectedBuildingName}
+            timeRange={24}
+            height={300}
+            onClose={() => {
+              setSelectedBuildingId(null);
+              setSelectedBuildingName("");
+            }}
+          />
+        )}
 
         {/* Building Occupancy Chart Component */}
         <BuildingOccupancyChart crowdData={crowdData} />
+
+        {/* Report Download Section */}
+        <ReportDownload apiUrl={heatmapApiUrl} />
 
         {/* Smart Notifications Component */}
         <SmartNotifications />
