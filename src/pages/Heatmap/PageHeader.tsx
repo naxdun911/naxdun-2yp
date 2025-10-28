@@ -1,11 +1,7 @@
 import React from 'react';
-import { Users, Activity, Clock, RefreshCw } from 'lucide-react';
+import { Users, Activity } from 'lucide-react';
 
-interface PageHeaderProps {
-  timestamp?: string;
-}
-
-const PageHeader: React.FC<PageHeaderProps> = ({ timestamp = "--:--" }) => {
+const PageHeader: React.FC = () => {
   return (
     <div className="mb-8 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6">
@@ -27,24 +23,6 @@ const PageHeader: React.FC<PageHeaderProps> = ({ timestamp = "--:--" }) => {
               <div className="text-white font-medium">Live Monitoring</div>
               <div className="text-blue-100 text-sm">Auto-refresh: 10s</div>
             </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Live Status Bar */}
-      <div className="bg-gradient-to-r from-emerald-50 to-green-50 px-6 py-4 border-l-4 border-emerald-500">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="flex items-center space-x-2">
-              <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></div>
-              <Clock className="w-4 h-4 text-emerald-600" />
-              <span className="text-emerald-800 font-medium">Live Data Time:</span>
-              <span className="text-emerald-700 font-semibold">{timestamp}</span>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2 text-emerald-600">
-            <RefreshCw className="w-4 h-4" />
-            <span className="text-sm">Auto-updating</span>
           </div>
         </div>
       </div>
