@@ -12,6 +12,7 @@ interface CrowdData {
   timestamp: string;
   color: string;
   capacity: number;  // Made required since we have it in database
+  predictionHorizonMinutes?: number;
 }
 
 interface ApiBuilding {
@@ -22,7 +23,10 @@ interface ApiBuilding {
   status_timestamp?: string | null;
   color?: string | null;
   building_capacity?: number | null;
+  prediction_horizon_minutes?: number | null;
 }
+
+const DEFAULT_PREDICTION_HORIZON_MINUTES = 15;
 
 const CrowdManagement: React.FC = () => {
   const [crowdData, setCrowdData] = useState<CrowdData[]>([]);
@@ -103,7 +107,8 @@ const CrowdManagement: React.FC = () => {
           predictedCount: (building.predicted_count ?? building.current_crowd) ?? 0,
           timestamp: building.status_timestamp ?? new Date().toLocaleTimeString(),
           color: building.color ?? colors[index % colors.length],
-          capacity: building.building_capacity ?? 100
+          capacity: building.building_capacity ?? 100,
+          predictionHorizonMinutes: building.prediction_horizon_minutes ?? DEFAULT_PREDICTION_HORIZON_MINUTES
         };
       });
       

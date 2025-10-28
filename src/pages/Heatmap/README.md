@@ -4,7 +4,7 @@
 - `CrowdManagement.tsx` orchestrates the heatmap dashboard. On mount it polls `GET /heatmap/map-data` every 10 s, normalises payloads, and passes them to child widgets. A graceful loading/error state is shared via `utils/uiHelpers.jsx`.
 - `SvgHeatmap.jsx` embeds `campus.svg`, paints shapes with live colours, and injects a rich popup that includes a nested `BuildingHistoryChart`. It also exposes a searchable building list, zoom controls, and live summary counters.
 - `BuildingHistoryChart.tsx` (Recharts + axios) renders the per-building history fetched from `GET /heatmap/building/:id/history`. It automatically formats timestamps and shows basic stats (peak, average, point count).
-- `BuildingOccupancyChart.tsx` displays portfolio-level trends (current vs predicted) using Recharts line charts and summary cards.
+- `BuildingOccupancyChart.tsx` displays portfolio-level trends (current vs predicted) using Recharts line charts and summary cards, honouring the backend-provided 15-minute forecast horizon.
 - `utils/uiHelpers.jsx` provides lightweight loading/error components and reusable style tokens.
 
 ## Data & Refresh Behaviour

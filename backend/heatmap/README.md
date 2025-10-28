@@ -15,7 +15,8 @@
 
 ## Key Endpoints
 - `GET /heatmap/map-data` – live building snapshot with EMA predictions.
-- `GET /heatmap/building/:buildingId/history?hours=N` – historical series plus 1-hour EMA projection for a single building.
+- `GET /heatmap/building/:buildingId/history?hours=N` – historical series plus 15-minute EMA projection for a single building.
+- Responses include `prediction_confidence`, `prediction_method`, and `prediction_horizon_minutes` so clients can surface forecast metadata.
 - `GET /telegram/status` / `POST /telegram/test` / `GET /telegram/buildings` – monitor or exercise the Telegram notification pipeline.
 - `GET /generator/status`, `POST /generator/start`, `POST /generator/stop`, `POST /generator/generate-historical` – manage synthetic data creation.
 
