@@ -19,6 +19,7 @@ app.use(express.json());
 
 // Register each feature router
 app.use('/heatmap', require('./routes/heatmap'));
+app.use('/reports', require('./routes/reports'));
 
 // Telegram notification routes
 app.get('/telegram/status', (req, res) => {

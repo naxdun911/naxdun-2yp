@@ -11,131 +11,115 @@
  *  - The forecast horizon is standardized to 15 minutes to align UI/UX
  */
 const express = require("express");
-const pool = require('../heatmap_db'); // PostgreSQL Pool instance
+const pool = require('../heatmap_db'); // pg Pool instance
 const { predictBuildingOccupancy } = require('../utils/emaPrediction');
+const { getCurrentSnapshot } = require('../utils/buildingSnapshot');
 
 const router = express.Router();
-// Global forecast horizon (in minutes) used by all endpoints
+
 const PREDICTION_MINUTES_AHEAD = 15;
 
-/**
- * Derive a heatmap color from current count and capacity.
- * Colors loosely map to occupancy thresholds (20/50/80%).
- * Falls back to gray for invalid capacity values.
- * @param {number} current
- * @param {number} capacity
- * @returns {string} hex color string
- */
 function getHeatmapColor(current, capacity) {
-  if (capacity <= 0) return "#cccccc"; // gray for invalid capacity
+  if (capacity <= 0) return "#cccccc";
   const ratio = current / capacity;
-
-  if (ratio < 0.2) return "#22c55e"; // green
-  if (ratio < 0.5) return "#eab308"; // light green
-  if (ratio < 0.8) return "#f97316"; // yellow
-  //if (ratio < 0.9) return "#ef4444"; // orange
-  return "#ef4444"; // red
+  if (ratio < 0.2) return "#22c55e";
+  if (ratio < 0.5) return "#eab308";
+  if (ratio < 0.8) return "#f97316";
+  return "#ef4444";
 }
-/**
- * GET /heatmap/map-data
- *
- * Returns a portfolio snapshot sourced from current_status joined with buildings.
- * For each building it also computes a 15-minute EMA-based prediction using up to
- * the last 6 hours of history. When prediction fails or data is insufficient,
- * it falls back to the current observed count.
- *
- * Response item fields include:
- *  - building_id, building_name, building_capacity
- *  - current_crowd, color, status_timestamp
- *  - predicted_count, prediction_confidence, prediction_method
- *  - prediction_horizon_minutes (always 15 unless overridden in code)
- */
+
+// Route to serve map data sourced from current_status (generator output)
 router.get("/map-data", async (req, res) => {
   try {
-    const dbResult = await pool.query(
-      `SELECT b.building_id,
-              b.building_name,
-              b.building_capacity,
-              cs.current_crowd,
-              cs.color,
-              cs.status_timestamp
-         FROM buildings b
-         JOIN current_status cs ON b.building_id = cs.building_id
-        ORDER BY b.building_id`
-    );
+    let snapshot = [];
 
-    if (dbResult.rows.length === 0) {
-      return res.status(503).json({
-        success: false,
-        error: "No building occupancy data available. Ensure the data generator is running."
-      });
+    try {
+      snapshot = await getCurrentSnapshot();
+    } catch (snapshotError) {
+      console.error('Snapshot helper failed, falling back to direct query:', snapshotError.message);
     }
 
-    const dataWithPredictions = [];
+    if (snapshot.length === 0) {
+      const dbResult = await pool.query(
+        `SELECT b.building_id,
+                b.building_name,
+                b.building_capacity,
+                cs.current_crowd,
+                cs.color,
+                cs.status_timestamp
+           FROM buildings b
+           JOIN current_status cs ON b.building_id = cs.building_id
+          ORDER BY b.building_id`
+      );
 
-    for (const row of dbResult.rows) {
-      // Default prediction mirrors current value until a model result is available
-      let predictedCount = row.current_crowd;
-      let predictionConfidence = 'low';
-      let predictionMethod = 'fallback';
-      let predictionHorizonMinutes = PREDICTION_MINUTES_AHEAD;
-
-      try {
-        // Pull a recent window of history for the building to feed EMA
-        const historyResult = await pool.query(
-          `SELECT current_crowd, timestamp
-             FROM building_history
-            WHERE building_id = $1
-              AND timestamp >= NOW() - INTERVAL '6 hours'
-            ORDER BY timestamp ASC`,
-          [row.building_id]
-        );
-
-        // Require a minimum number of points to run EMA reliably
-        if (historyResult.rows.length >= 3) {
-          const historicalData = historyResult.rows.map(histRow => ({
-            timestamp: histRow.timestamp,
-            current_count: histRow.current_crowd
-          }));
-
-          const prediction = predictBuildingOccupancy(historicalData, {
-            minutesAhead: PREDICTION_MINUTES_AHEAD,
-            periods: 12,
-            minDataPoints: 3
-          });
-
-          if (prediction && prediction.method !== 'fallback') {
-            predictedCount = prediction.prediction;
-            predictionConfidence = prediction.confidence;
-            predictionMethod = prediction.method;
-            predictionHorizonMinutes = prediction.horizonMinutes ?? PREDICTION_MINUTES_AHEAD;
-          }
-        }
-      } catch (predictionError) {
-        console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
+      if (dbResult.rows.length === 0) {
+        return res.status(503).json({
+          success: false,
+          error: "No building occupancy data available. Ensure the data generator is running."
+        });
       }
 
-      // Prefer color coming from current_status; otherwise derive from occupancy ratio
-      const color = row.color || getHeatmapColor(row.current_crowd, row.building_capacity);
+      const dataWithPredictions = [];
 
-      dataWithPredictions.push({
-        building_id: row.building_id,
-        building_name: row.building_name,
-        current_crowd: row.current_crowd,
-        building_capacity: row.building_capacity,
-        color,
-        status_timestamp: row.status_timestamp,
-        predicted_count: predictedCount,
-        prediction_confidence: predictionConfidence,
-        prediction_method: predictionMethod,
-        prediction_horizon_minutes: predictionHorizonMinutes
-      });
+      for (const row of dbResult.rows) {
+        let predictedCount = row.current_crowd;
+        let predictionConfidence = 'low';
+        let predictionMethod = 'fallback';
+
+        try {
+          const historyResult = await pool.query(
+            `SELECT current_crowd, timestamp
+               FROM building_history
+              WHERE building_id = $1
+                AND timestamp >= NOW() - INTERVAL '6 hours'
+              ORDER BY timestamp ASC`,
+            [row.building_id]
+          );
+
+          if (historyResult.rows.length >= 3) {
+            const historicalData = historyResult.rows.map(histRow => ({
+              timestamp: histRow.timestamp,
+              current_count: histRow.current_crowd
+            }));
+
+            const prediction = predictBuildingOccupancy(historicalData, {
+              hoursAhead: 1,
+              periods: 12,
+              minDataPoints: 3
+            });
+
+            if (prediction && prediction.method !== 'fallback') {
+              predictedCount = prediction.prediction;
+              predictionConfidence = prediction.confidence;
+              predictionMethod = prediction.method;
+            }
+          }
+        } catch (predictionError) {
+          console.error(`EMA prediction error for building ${row.building_id}:`, predictionError.message);
+        }
+
+        const color = row.color || getHeatmapColor(row.current_crowd, row.building_capacity);
+
+        dataWithPredictions.push({
+          building_id: row.building_id,
+          building_name: row.building_name,
+          current_crowd: row.current_crowd,
+          building_capacity: row.building_capacity,
+          color,
+          status_timestamp: row.status_timestamp,
+          predicted_count: predictedCount,
+          prediction_confidence: predictionConfidence,
+          prediction_method: predictionMethod
+        });
+      }
+
+      snapshot = dataWithPredictions;
     }
 
     res.json({
       success: true,
       source: "Current Status",
-      data: dataWithPredictions
+      data: snapshot
     });
 
   } catch (error) {
